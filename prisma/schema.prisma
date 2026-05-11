@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model WatchSource {
+  id                  String    @id @default(cuid())
+  name                String
+  storeName           String
+  url                 String    @unique
+  type                String    @default("html")
+  enabled             Boolean   @default(true)
+  lastCheckedAt       DateTime?
+  lastSuccess         Boolean?
+  lastHttpStatus      Int?
+  lastFetchedCount    Int       @default(0)
+  lastNewListingCount Int       @default(0)
+  lastMatchedKeywords String?
+  lastError           String?
+  memo                String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([enabled])
+  @@index([type])
+  @@index([storeName])
+}
+
+model LotteryListing {
+  id                       String        @id @default(cuid())
+  title                    String
+  productName              String
+  storeName                String
+  sourceName               String
+  sourceUrl                String
+  lotteryUrl               String        @unique
+  imageUrl                 String?
+  description              String?
+  applicationStartAt       DateTime?
+  applicationEndAt         DateTime?
+  resultAnnouncementAt     DateTime?
+  purchaseDeadlineAt       DateTime?
+  detectedAt               DateTime      @default(now())
+  lastSeenAt               DateTime      @default(now())
+  status                   String        @default("unknown")
+  confidenceScore          Float         @default(0)
+  matchedKeywords          String?
+  confidenceReason         String?
+  extractedDatesRaw        String?
+  normalizedUrl            String?
+  contentHash              String?
+  retailPrice              Int?
+  bestBuyPrice             Int?
+  estimatedProfit          Int?
+  profitRate               Float?
+  roi                      Float?
+  priceMultiplier          Float?
+  priceCheckedAt           DateTime?
+  priceStatus              String        @default("unchecked")
+  applicationPriorityScore Float         @default(0)
+  applicationPriorityLabel String        @default("D")
+  ignored                  Boolean       @default(false)
+  ignoredReason            String?
+  ignoredAt                DateTime?
+  userVerdict              String?
+  userVerdictMemo          String?
+  userVerdictAt            DateTime?
+  applicationStatus        String        @default("not_applied")
+  appliedAt                DateTime?
+  wonAt                    DateTime?
+  lostAt                   DateTime?
+  purchasedAt              DateTime?
+  soldAt                   DateTime?
+  skippedAt                DateTime?
+  purchasePrice            Int?
+  purchaseMemo             String?
+  salePrice                Int?
+  shippingCost             Int?
+  fee                      Int?
+  actualProfit             Int?
+  actualProfitRate         Float?
+  actualRoi                Float?
+  saleDestination          String?
+  saleMemo                 String?
+  rawText                  String?
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+  priceRecords             PriceRecord[]
+
+  @@index([productName])
+  @@index([storeName])
+  @@index([status])
+  @@index([applicationEndAt])
+  @@index([detectedAt])
+  @@index([lastSeenAt])
+  @@index([contentHash])
+  @@index([priceStatus])
+  @@index([estimatedProfit])
+  @@index([roi])
+  @@index([applicationPriorityScore])
+  @@index([applicationPriorityLabel])
+  @@index([ignored])
+  @@index([userVerdict])
+  @@index([applicationStatus])
+  @@index([soldAt])
+  @@index([actualProfit])
+  @@index([actualRoi])
+}
+
+model CollectorRun {
+  id                  String             @id @default(cuid())
+  startedAt           DateTime           @default(now())
+  finishedAt          DateTime?
+  targetSourceCount   Int                @default(0)
+  successCount        Int                @default(0)
+  errorCount          Int                @default(0)
+  newListingCount     Int                @default(0)
+  updatedListingCount Int                @default(0)
+  skippedCount        Int                @default(0)
+  errorMessage        String?
+  createdAt           DateTime           @default(now())
+  items               CollectorRunItem[]
+
+  @@index([startedAt])
+}
+
+model CollectorRunItem {
+  id                  String       @id @default(cuid())
+  collectorRunId      String
+  watchSourceId       String?
+  sourceName          String
+  storeName           String
+  sourceUrl           String
+  type                String
+  startedAt           DateTime     @default(now())
+  finishedAt          DateTime?
+  success             Boolean      @default(false)
+  httpStatus          Int?
+  fetchedCount        Int          @default(0)
+  matchedKeywords     String?
+  newListingCount     Int          @default(0)
+  updatedListingCount Int          @default(0)
+  skippedCount        Int          @default(0)
+  errorMessage        String?
+  createdAt           DateTime     @default(now())
+  run                 CollectorRun @relation(fields: [collectorRunId], references: [id], onDelete: Cascade)
+
+  @@index([collectorRunId])
+  @@index([watchSourceId])
+  @@index([success])
+}
+
+model SourcePreset {
+  id             String   @id @default(cuid())
+  name           String
+  storeName      String
+  url            String   @unique
+  type           String   @default("html")
+  category       String
+  description    String?
+  defaultEnabled Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([category])
+  @@index([storeName])
+}
+
+model PriceSource {
+  id                String    @id @default(cuid())
+  name              String
+  shopName          String
+  baseUrl           String
+  searchUrlTemplate String
+  enabled           Boolean   @default(true)
+  memo              String?
+  lastCheckedAt     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([enabled])
+  @@index([shopName])
+}
+
+model PriceRecord {
+  id               String         @id @default(cuid())
+  lotteryListingId String
+  productName      String
+  shopName         String
+  price            Int
+  sourceUrl        String
+  matchedTitle     String
+  confidenceScore  Float          @default(0)
+  extractedAt      DateTime       @default(now())
+  rawText          String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  lotteryListing   LotteryListing @relation(fields: [lotteryListingId], references: [id], onDelete: Cascade)
+
+  @@unique([lotteryListingId, sourceUrl, matchedTitle])
+  @@index([lotteryListingId])
+  @@index([shopName])
+  @@index([price])
+  @@index([extractedAt])
+}
+
+model PriceCollectorRun {
+  id                String    @id @default(cuid())
+  startedAt         DateTime  @default(now())
+  finishedAt        DateTime?
+  targetCount       Int       @default(0)
+  successCount      Int       @default(0)
+  errorCount        Int       @default(0)
+  newPriceCount     Int       @default(0)
+  updatedPriceCount Int       @default(0)
+  errorMessage      String?
+  createdAt         DateTime  @default(now())
+
+  @@index([startedAt])
+}
+
+model ExclusionKeyword {
+  id        String   @id @default(cuid())
+  keyword   String   @unique
+  enabled   Boolean  @default(true)
+  memo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled])
+}

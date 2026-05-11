@@ -1,0 +1,15 @@
+.env
+.env*.local
+node_modules
+.next
+dist
+coverage
+*.log
+prisma/dev.db
+prisma/dev.db-journal
+prisma/dev.db-shm
+prisma/dev.db-wal
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db-shm
+prisma/*.db-wal

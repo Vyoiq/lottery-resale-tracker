@@ -1,0 +1,206 @@
+import Link from "next/link";
+import { runCollectorsAction, runPriceCollectorsAction } from "@/lib/actions";
+import { addDays, endOfDay, startOfDay, subDays } from "@/lib/dates";
+import { prisma } from "@/lib/prisma";
+import { priorityLabelText, priorityTone } from "@/lib/priority";
+import { applicationStatusLabels, dateOnly, dateTime, multiple, percent, relativeCount, yen } from "@/lib/format";
+import { Badge, buttonClass, Card, EmptyState, PageHeader, StatCard, secondaryButtonClass } from "@/components/ui";
+
+export const dynamic = "force-dynamic";
+
+type ListingWithPrice = Awaited<ReturnType<typeof prisma.lotteryListing.findMany>>[number] & {
+  priceRecords?: { confidenceScore: number }[];
+};
+
+export default async function DashboardPage() {
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const todayEnd = endOfDay(now);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const yesterday = subDays(now, 1);
+
+  const [
+    applicationCandidates,
+    todayDeadlineListings,
+    latestRun,
+    sourcesCount,
+    statusGroups,
+    thisMonthSold,
+    allSold,
+    purchasedUnsoldCount,
+    highProfitListings,
+    highRoiListings,
+    uncheckedPriceListings,
+    priceErrorListings,
+    newListings
+  ] = await Promise.all([
+    prisma.lotteryListing.findMany({
+      where: {
+        ignored: false,
+        status: "active",
+        applicationEndAt: { gte: now },
+        priceStatus: "found",
+        estimatedProfit: { gt: 0 },
+        priceRecords: { some: { confidenceScore: { gte: 0.7 } } }
+      },
+      include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } },
+      orderBy: [{ applicationPriorityScore: "desc" }, { estimatedProfit: "desc" }],
+      take: 8
+    }),
+    prisma.lotteryListing.findMany({ where: { ignored: false, status: "active", applicationEndAt: { gte: todayStart, lte: todayEnd } }, orderBy: { applicationEndAt: "asc" }, take: 8 }),
+    prisma.collectorRun.findFirst({ orderBy: { startedAt: "desc" } }),
+    prisma.watchSource.count({ where: { enabled: true } }),
+    prisma.lotteryListing.groupBy({ by: ["applicationStatus"], _count: true }),
+    prisma.lotteryListing.findMany({ where: { applicationStatus: "sold", soldAt: { gte: monthStart }, actualProfit: { not: null } }, select: { actualProfit: true, actualRoi: true } }),
+    prisma.lotteryListing.findMany({ where: { applicationStatus: "sold", actualProfit: { not: null } }, select: { actualProfit: true, actualRoi: true } }),
+    prisma.lotteryListing.count({ where: { applicationStatus: "purchased" } }),
+    prisma.lotteryListing.findMany({ where: { ignored: false, estimatedProfit: { not: null } }, include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } }, orderBy: { estimatedProfit: "desc" }, take: 8 }),
+    prisma.lotteryListing.findMany({ where: { ignored: false, roi: { not: null } }, include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } }, orderBy: { roi: "desc" }, take: 8 }),
+    prisma.lotteryListing.findMany({ where: { ignored: false, priceStatus: "unchecked" }, orderBy: { detectedAt: "desc" }, take: 8 }),
+    prisma.lotteryListing.findMany({ where: { ignored: false, priceStatus: "error" }, orderBy: { priceCheckedAt: "desc" }, take: 8 }),
+    prisma.lotteryListing.findMany({ where: { ignored: false, detectedAt: { gte: yesterday } }, orderBy: { detectedAt: "desc" }, take: 8 })
+  ]);
+
+  const statusCounts = Object.fromEntries(statusGroups.map((item) => [item.applicationStatus, item._count]));
+  const appliedCount = (statusCounts.applied ?? 0) + (statusCounts.won ?? 0) + (statusCounts.lost ?? 0) + (statusCounts.purchased ?? 0) + (statusCounts.sold ?? 0);
+  const wonCount = (statusCounts.won ?? 0) + (statusCounts.purchased ?? 0) + (statusCounts.sold ?? 0);
+  const lostCount = statusCounts.lost ?? 0;
+  const purchasedCount = (statusCounts.purchased ?? 0) + (statusCounts.sold ?? 0);
+  const soldCount = statusCounts.sold ?? 0;
+  const thisMonthProfit = sum(thisMonthSold.map((item) => item.actualProfit));
+  const totalProfit = sum(allSold.map((item) => item.actualProfit));
+  const avgActualRoi = average(allSold.map((item) => item.actualRoi));
+  const winRate = appliedCount > 0 ? (wonCount / appliedCount) * 100 : null;
+
+  return (
+    <>
+      <PageHeader title="ダッシュボード" description="抽選情報、買取価格、応募状況、確定利益をまとめて確認します。応募や購入処理は行いません。">
+        <div className="flex gap-2">
+          <form action={runCollectorsAction}><button className={buttonClass} type="submit">抽選情報を更新</button></form>
+          <form action={runPriceCollectorsAction}><button className={secondaryButtonClass} type="submit">買取価格を更新</button></form>
+        </div>
+      </PageHeader>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-5">
+        <StatCard label="応募済み件数" value={`${relativeCount(appliedCount)}件`} />
+        <StatCard label="当選件数" value={`${relativeCount(wonCount)}件`} />
+        <StatCard label="落選件数" value={`${relativeCount(lostCount)}件`} />
+        <StatCard label="購入済み件数" value={`${relativeCount(purchasedCount)}件`} />
+        <StatCard label="売却済み件数" value={`${relativeCount(soldCount)}件`} />
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-5">
+        <StatCard label="今月の確定利益" value={yen(thisMonthProfit)} />
+        <StatCard label="累計確定利益" value={yen(totalProfit)} />
+        <StatCard label="当選率" value={percent(winRate)} note="当選・購入・売却 / 応募済み以上" />
+        <StatCard label="平均実ROI" value={percent(avgActualRoi)} />
+        <StatCard label="未売却の商品数" value={`${relativeCount(purchasedUnsoldCount)}件`} />
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <StatCard label="応募候補" value={`${relativeCount(applicationCandidates.length)}件`} note="高信頼価格・利益プラス" />
+        <StatCard label="今日締切の抽選" value={`${relativeCount(todayDeadlineListings.length)}件`} />
+        <StatCard label="新しく見つかった抽選" value={`${relativeCount(newListings.length)}件`} note="直近24時間" />
+        <StatCard label="有効な監視ソース" value={`${relativeCount(sourcesCount)}件`} note={latestRun ? `最終収集 ${dateTime(latestRun.finishedAt ?? latestRun.startedAt)}` : "未実行"} />
+      </div>
+
+      <Card className="mb-6 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-semibold">応募候補</h2>
+          <Link href="/lotteries?sort=priority" className={secondaryButtonClass}>一覧</Link>
+        </div>
+        <CandidateTable listings={applicationCandidates} />
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <ListingPanel title="利益率が高い抽選" listings={highProfitListings} href="/lotteries?sort=profit" />
+        <ListingPanel title="ROIが高い抽選" listings={highRoiListings} href="/lotteries?sort=roi" />
+        <ListingPanel title="価格未取得の抽選" listings={uncheckedPriceListings} href="/lotteries?priceStatus=unchecked" />
+        <ListingPanel title="価格取得エラーの抽選" listings={priceErrorListings} href="/lotteries?priceStatus=error" />
+      </div>
+    </>
+  );
+}
+
+function CandidateTable({ listings }: { listings: ListingWithPrice[] }) {
+  if (listings.length === 0) return <EmptyState message="応募候補はありません。価格取得や定価入力を確認してください。" />;
+  return (
+    <table className="w-full text-sm">
+      <thead className="bg-muted text-left text-xs text-muted-foreground">
+        <tr>
+          <th className="px-4 py-3">商品</th>
+          <th className="px-4 py-3">店舗</th>
+          <th className="px-4 py-3">締切</th>
+          <th className="px-4 py-3 text-right">定価</th>
+          <th className="px-4 py-3 text-right">最高買取</th>
+          <th className="px-4 py-3 text-right">想定利益</th>
+          <th className="px-4 py-3 text-right">ROI/倍率</th>
+          <th className="px-4 py-3">応募状況</th>
+          <th className="px-4 py-3">優先度</th>
+          <th className="px-4 py-3">URL</th>
+        </tr>
+      </thead>
+      <tbody>
+        {listings.map((listing) => (
+          <tr key={listing.id} className="border-t border-border">
+            <td className="max-w-sm px-4 py-3 font-medium"><Link href={`/lotteries/${listing.id}`} className="hover:text-primary">{listing.productName}</Link></td>
+            <td className="px-4 py-3">{listing.storeName}</td>
+            <td className="px-4 py-3">{dateOnly(listing.applicationEndAt)}</td>
+            <td className="px-4 py-3 text-right tabular-nums">{yen(listing.retailPrice)}</td>
+            <td className="px-4 py-3 text-right tabular-nums">{yen(listing.bestBuyPrice)}</td>
+            <td className="px-4 py-3 text-right font-semibold tabular-nums">{yen(listing.estimatedProfit)}</td>
+            <td className="px-4 py-3 text-right tabular-nums">{percent(listing.roi)} / {multiple(listing.priceMultiplier)}</td>
+            <td className="px-4 py-3"><Badge>{applicationStatusLabels[listing.applicationStatus]}</Badge></td>
+            <td className="px-4 py-3"><PriorityBadge label={listing.applicationPriorityLabel} score={listing.applicationPriorityScore} /></td>
+            <td className="px-4 py-3"><a className="text-primary" href={listing.lotteryUrl} target="_blank">元ページ</a></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ListingPanel({ title, listings, href }: { title: string; listings: ListingWithPrice[]; href: string }) {
+  return (
+    <Card className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-semibold">{title}</h2>
+        <Link href={href} className={secondaryButtonClass}>一覧</Link>
+      </div>
+      {listings.length === 0 ? (
+        <EmptyState message="表示できる情報がありません。" />
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-muted-foreground">
+            <tr><th className="py-2">商品</th><th className="py-2">価格</th><th className="py-2">優先度</th></tr>
+          </thead>
+          <tbody>
+            {listings.map((listing) => (
+              <tr key={listing.id} className="border-t border-border">
+                <td className="max-w-xs truncate py-3 font-medium"><Link href={`/lotteries/${listing.id}`}>{listing.productName}</Link></td>
+                <td className="py-3 text-xs">{yen(listing.bestBuyPrice)} / 利益 {yen(listing.estimatedProfit)}<div className="text-muted-foreground">ROI {percent(listing.roi)}</div></td>
+                <td className="py-3"><PriorityBadge label={listing.applicationPriorityLabel} score={listing.applicationPriorityScore} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Card>
+  );
+}
+
+function PriorityBadge({ label, score }: { label: string; score: number }) {
+  return <Badge tone={priorityTone(label) as "success" | "primary" | "warning" | "neutral" | "danger"}>{label}: {priorityLabelText(label)} ({score})</Badge>;
+}
+
+function sum(values: Array<number | null>): number {
+  let total = 0;
+  for (const value of values) total += value ?? 0;
+  return total;
+}
+
+function average(values: Array<number | null>) {
+  const filtered = values.filter((value): value is number => value !== null);
+  if (filtered.length === 0) return null;
+  return filtered.reduce((total, value) => total + value, 0) / filtered.length;
+}
