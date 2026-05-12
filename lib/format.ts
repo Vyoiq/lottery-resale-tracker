@@ -38,6 +38,22 @@ export const applicationStatusLabels: Record<string, string> = {
   skipped: "スキップ"
 };
 
+export const notificationSeverityLabels: Record<string, string> = {
+  info: "通常",
+  warning: "注意",
+  important: "重要"
+};
+
+export const notificationTypeLabels: Record<string, string> = {
+  high_priority: "高優先度",
+  deadline_soon: "締切間近",
+  price_found: "価格候補",
+  price_error: "価格エラー",
+  not_applied_deadline_today: "本日締切未応募",
+  won_not_purchased: "当選後未購入",
+  purchased_not_sold: "購入後未売却"
+};
+
 export function dateOnly(value: Date | string | null | undefined) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("ja-JP", {

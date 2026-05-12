@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { runCollectors } from "@/services/collectors/base";
 import { collectPricesForListing, runPriceCollectors } from "@/services/priceCollectors/base";
 import { refreshListingBestPrice } from "@/services/priceCollectors/savePriceRecords";
+import { generateNotifications } from "@/services/notifications/generateNotifications";
 import { prisma } from "@/lib/prisma";
 import { recalculateAllListingPriorities, recalculateListingPriority } from "@/lib/priorityService";
 import { calculateActualSaleMetrics } from "@/lib/salesCalculations";
@@ -339,6 +340,37 @@ export async function toggleExclusionKeyword(formData: FormData) {
   revalidatePath("/settings/score-tuning");
 }
 
+export async function generateNotificationsAction() {
+  await generateNotifications();
+  revalidatePath("/");
+  revalidatePath("/notifications");
+  revalidatePath("/lotteries");
+}
+
+export async function markNotificationRead(formData: FormData) {
+  await prisma.notification.update({
+    where: { id: str(formData, "id") },
+    data: {
+      read: true,
+      readAt: new Date()
+    }
+  });
+  revalidatePath("/");
+  revalidatePath("/notifications");
+}
+
+export async function markAllNotificationsRead() {
+  await prisma.notification.updateMany({
+    where: { read: false },
+    data: {
+      read: true,
+      readAt: new Date()
+    }
+  });
+  revalidatePath("/");
+  revalidatePath("/notifications");
+}
+
 function revalidateListingViews(id: string) {
   revalidatePath("/");
   revalidatePath("/lotteries");
@@ -346,4 +378,5 @@ function revalidateListingViews(id: string) {
   revalidatePath("/review");
   revalidatePath("/settings/score-tuning");
   revalidatePath("/analytics");
+  revalidatePath("/notifications");
 }

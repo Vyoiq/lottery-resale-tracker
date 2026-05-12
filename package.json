@@ -11,7 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "seed": "prisma db seed",
     "collect": "tsx scripts/collect.ts",
-    "collect:prices": "tsx scripts/collect-prices.ts"
+    "collect:prices": "tsx scripts/collect-prices.ts",
+    "notifications": "tsx scripts/notifications.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

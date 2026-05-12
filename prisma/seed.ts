@@ -13,6 +13,7 @@ const daysFromNow = (days: number) => {
 };
 
 async function main() {
+  await prisma.notification.deleteMany();
   await prisma.priceCollectorRun.deleteMany();
   await prisma.priceRecord.deleteMany();
   await prisma.priceSource.deleteMany();
@@ -106,12 +107,12 @@ async function main() {
       lotteryUrl: "https://example.com/lottery/sample",
       description: "自動検出結果、価格計算、応募状況、売却実績の表示確認用サンプルです。",
       applicationStartAt: daysFromNow(-20),
-      applicationEndAt: daysFromNow(-10),
-      resultAnnouncementAt: daysFromNow(-8),
-      purchaseDeadlineAt: daysFromNow(-5),
-      detectedAt: daysFromNow(-21),
-      lastSeenAt: daysFromNow(-10),
-      status: "ended",
+      applicationEndAt: daysFromNow(2),
+      resultAnnouncementAt: daysFromNow(5),
+      purchaseDeadlineAt: daysFromNow(9),
+      detectedAt: daysFromNow(-1),
+      lastSeenAt: new Date(),
+      status: "active",
       confidenceScore: 0.8,
       matchedKeywords: "抽選, 応募, 受付, ポケモンカード, BOX",
       confidenceReason: "タイトルと本文に抽選系キーワードが複数含まれるため",
@@ -131,22 +132,8 @@ async function main() {
       ignored: false,
       userVerdict: "good",
       userVerdictMemo: "サンプル確認用",
-      userVerdictAt: daysFromNow(-9),
-      applicationStatus: "sold",
-      appliedAt: daysFromNow(-18),
-      wonAt: daysFromNow(-8),
-      purchasedAt: daysFromNow(-6),
-      soldAt: daysFromNow(-1),
-      purchasePrice: retailPrice,
-      purchaseMemo: "店頭で手動購入",
-      salePrice: bestBuyPrice,
-      shippingCost: 0,
-      fee: 0,
-      actualProfit: actual.actualProfit,
-      actualProfitRate: actual.actualProfitRate,
-      actualRoi: actual.actualRoi,
-      saleDestination: "サンプル買取店",
-      saleMemo: "seed用の売却履歴",
+      userVerdictAt: new Date(),
+      applicationStatus: "not_applied",
       rawText: "抽選販売 応募 受付 限定 ポケモンカード BOX"
     }
   });

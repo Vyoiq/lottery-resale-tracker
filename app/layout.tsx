@@ -1,15 +1,28 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BarChart3, CircleDollarSign, ClipboardList, Database, FlaskConical, Home, RadioTower, ScrollText, Settings, SlidersHorizontal } from "lucide-react";
+import {
+  BarChart3,
+  Bell,
+  CircleDollarSign,
+  ClipboardList,
+  Database,
+  FlaskConical,
+  Home,
+  RadioTower,
+  ScrollText,
+  Settings,
+  SlidersHorizontal
+} from "lucide-react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "抽選販売・買取価格情報アプリ",
-  description: "公開ページやRSSから抽選販売情報と買取価格候補を取得し、利益と応募履歴を管理する個人用アプリ"
+  title: "抽選販売・買取価格情報管理アプリ",
+  description: "公開ページやRSSから抽選販売情報と買取価格候補を収集し、応募状況と利益実績を管理する個人用アプリ"
 };
 
 const navItems = [
   { href: "/", label: "ダッシュボード", icon: Home },
+  { href: "/notifications", label: "通知", icon: Bell },
   { href: "/lotteries", label: "抽選一覧", icon: ClipboardList },
   { href: "/analytics", label: "分析", icon: BarChart3 },
   { href: "/review", label: "誤検出レビュー", icon: BarChart3 },

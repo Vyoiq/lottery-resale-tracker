@@ -44,17 +44,17 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
         <Card className="p-4">
           <h2 className="mb-3 font-semibold">{listing.productName}</h2>
           <dl className="grid gap-3 text-sm md:grid-cols-2">
-            <div><dt className="text-muted-foreground">店舗</dt><dd>{listing.storeName}</dd></div>
-            <div><dt className="text-muted-foreground">抽選状態</dt><dd><Badge tone={tone(listing.status)}>{listingStatusLabels[listing.status]}</Badge></dd></div>
+            <FieldRow label="店舗" value={listing.storeName} />
+            <div><dt className="text-muted-foreground">抽選ステータス</dt><dd><Badge tone={tone(listing.status)}>{listingStatusLabels[listing.status]}</Badge></dd></div>
             <div><dt className="text-muted-foreground">応募状況</dt><dd><Badge tone={tone(listing.applicationStatus)}>{applicationStatusLabels[listing.applicationStatus]}</Badge></dd></div>
-            <div><dt className="text-muted-foreground">応募締切</dt><dd>{dateOnly(listing.applicationEndAt)}</dd></div>
-            <div><dt className="text-muted-foreground">応募日</dt><dd>{dateTime(listing.appliedAt)}</dd></div>
-            <div><dt className="text-muted-foreground">当選日</dt><dd>{dateTime(listing.wonAt)}</dd></div>
-            <div><dt className="text-muted-foreground">落選日</dt><dd>{dateTime(listing.lostAt)}</dd></div>
-            <div><dt className="text-muted-foreground">購入日</dt><dd>{dateTime(listing.purchasedAt)}</dd></div>
-            <div><dt className="text-muted-foreground">売却日</dt><dd>{dateTime(listing.soldAt)}</dd></div>
-            <div><dt className="text-muted-foreground">検出日時</dt><dd>{dateTime(listing.detectedAt)}</dd></div>
-            <div><dt className="text-muted-foreground">最終確認</dt><dd>{dateTime(listing.lastSeenAt)}</dd></div>
+            <FieldRow label="応募締切" value={dateOnly(listing.applicationEndAt)} />
+            <FieldRow label="応募日" value={dateTime(listing.appliedAt)} />
+            <FieldRow label="当選日" value={dateTime(listing.wonAt)} />
+            <FieldRow label="落選日" value={dateTime(listing.lostAt)} />
+            <FieldRow label="購入日" value={dateTime(listing.purchasedAt)} />
+            <FieldRow label="売却日" value={dateTime(listing.soldAt)} />
+            <FieldRow label="検出日時" value={dateTime(listing.detectedAt)} />
+            <FieldRow label="最終確認" value={dateTime(listing.lastSeenAt)} />
             <div>
               <dt className="text-muted-foreground">応募優先度</dt>
               <dd>
@@ -63,10 +63,13 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
                 </Badge>
               </dd>
             </div>
-            <div><dt className="text-muted-foreground">ユーザー判定</dt><dd>{listing.userVerdict ? <Badge tone={tone(listing.userVerdict)}>{userVerdictLabels[listing.userVerdict]}</Badge> : "未判定"}</dd></div>
+            <div>
+              <dt className="text-muted-foreground">ユーザー判定</dt>
+              <dd>{listing.userVerdict ? <Badge tone={tone(listing.userVerdict)}>{userVerdictLabels[listing.userVerdict]}</Badge> : "未判定"}</dd>
+            </div>
             <div className="md:col-span-2"><dt className="text-muted-foreground">URL</dt><dd><a className="text-primary" href={listing.lotteryUrl} target="_blank">{listing.lotteryUrl}</a></dd></div>
-            <div className="md:col-span-2"><dt className="text-muted-foreground">検出理由</dt><dd>{listing.confidenceReason ?? "-"} / {listing.matchedKeywords ?? "-"}</dd></div>
-            <div className="md:col-span-2"><dt className="text-muted-foreground">説明</dt><dd>{listing.description ?? "-"}</dd></div>
+            <FieldRow className="md:col-span-2" label="検出理由" value={`${listing.confidenceReason ?? "-"} / ${listing.matchedKeywords ?? "-"}`} />
+            <FieldRow className="md:col-span-2" label="説明" value={listing.description ?? "-"} />
           </dl>
 
           <div className="mt-4 grid gap-3">
@@ -96,19 +99,19 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
             </form>
           </div>
           <dl className="grid gap-3 text-sm">
-            <div className="flex justify-between"><dt className="text-muted-foreground">価格状態</dt><dd><Badge tone={tone(listing.priceStatus)}>{priceStatusLabels[listing.priceStatus]}</Badge></dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">最高価格信頼度</dt><dd>{bestConfidence.toFixed(2)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">定価</dt><dd>{yen(listing.retailPrice)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">最高買取価格</dt><dd>{yen(listing.bestBuyPrice)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">想定利益</dt><dd className="font-semibold">{yen(listing.estimatedProfit)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">想定ROI</dt><dd>{percent(listing.roi)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">倍率</dt><dd>{multiple(listing.priceMultiplier)}</dd></div>
-            <div className="border-t border-border pt-3 flex justify-between"><dt className="text-muted-foreground">購入価格</dt><dd>{yen(listing.purchasePrice)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">売却価格</dt><dd>{yen(listing.salePrice)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">送料/手数料</dt><dd>{yen(listing.shippingCost)} / {yen(listing.fee)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">実利益</dt><dd className="font-semibold">{yen(listing.actualProfit)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">実利益率</dt><dd>{percent(listing.actualProfitRate)}</dd></div>
-            <div className="flex justify-between"><dt className="text-muted-foreground">実ROI</dt><dd>{percent(listing.actualRoi)}</dd></div>
+            <MetricRow label="価格ステータス" value={<Badge tone={tone(listing.priceStatus)}>{priceStatusLabels[listing.priceStatus]}</Badge>} />
+            <MetricRow label="最高価格信頼度" value={bestConfidence.toFixed(2)} />
+            <MetricRow label="定価" value={yen(listing.retailPrice)} />
+            <MetricRow label="最高買取価格" value={yen(listing.bestBuyPrice)} />
+            <MetricRow label="想定利益" value={<span className="font-semibold">{yen(listing.estimatedProfit)}</span>} />
+            <MetricRow label="想定ROI" value={percent(listing.roi)} />
+            <MetricRow label="倍率" value={multiple(listing.priceMultiplier)} />
+            <MetricRow label="購入価格" value={yen(listing.purchasePrice)} border />
+            <MetricRow label="売却価格" value={yen(listing.salePrice)} />
+            <MetricRow label="送料/手数料" value={`${yen(listing.shippingCost)} / ${yen(listing.fee)}`} />
+            <MetricRow label="実利益" value={<span className="font-semibold">{yen(listing.actualProfit)}</span>} />
+            <MetricRow label="実利益率" value={percent(listing.actualProfitRate)} />
+            <MetricRow label="実ROI" value={percent(listing.actualRoi)} />
           </dl>
 
           <form action={updateLotteryRetailPrice} className="mt-4 grid gap-2">
@@ -159,7 +162,7 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
           <Field label="一致タイトル"><input className={inputClass} name="matchedTitle" defaultValue={listing.productName} /></Field>
           <div className="flex items-end"><button className={buttonClass} type="submit">価格を追加</button></div>
           <div className="md:col-span-5">
-            <Field label="メモ/rawText"><textarea className={textareaClass} name="rawText" /></Field>
+            <Field label="メモ / rawText"><textarea className={textareaClass} name="rawText" /></Field>
           </div>
         </form>
       </Card>
@@ -167,7 +170,7 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
       <Card className="overflow-hidden">
         <div className="border-b border-border p-4"><h2 className="font-semibold">価格履歴</h2></div>
         {listing.priceRecords.length === 0 ? (
-          <div className="p-4"><EmptyState message="価格履歴がありません。" /></div>
+          <div className="p-4"><EmptyState message="価格履歴はありません。" /></div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-muted text-left text-xs text-muted-foreground">
@@ -197,6 +200,14 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
       </Card>
     </>
   );
+}
+
+function FieldRow({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
+  return <div className={className}><dt className="text-muted-foreground">{label}</dt><dd>{value}</dd></div>;
+}
+
+function MetricRow({ label, value, border }: { label: string; value: React.ReactNode; border?: boolean }) {
+  return <div className={`flex justify-between ${border ? "border-t border-border pt-3" : ""}`}><dt className="text-muted-foreground">{label}</dt><dd>{value}</dd></div>;
 }
 
 function ApplicationButtons({ listingId }: { listingId: string }) {

@@ -1,15 +1,28 @@
 import Link from "next/link";
-import { runCollectorsAction, runPriceCollectorsAction } from "@/lib/actions";
-import { addDays, endOfDay, startOfDay, subDays } from "@/lib/dates";
+import { generateNotificationsAction, runCollectorsAction, runPriceCollectorsAction } from "@/lib/actions";
+import { endOfDay, startOfDay, subDays } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
-import { applicationStatusLabels, dateOnly, dateTime, multiple, percent, relativeCount, yen } from "@/lib/format";
+import {
+  applicationStatusLabels,
+  dateOnly,
+  dateTime,
+  multiple,
+  notificationSeverityLabels,
+  percent,
+  relativeCount,
+  yen
+} from "@/lib/format";
 import { Badge, buttonClass, Card, EmptyState, PageHeader, StatCard, secondaryButtonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 type ListingWithPrice = Awaited<ReturnType<typeof prisma.lotteryListing.findMany>>[number] & {
   priceRecords?: { confidenceScore: number }[];
+};
+
+type NotificationWithListing = Awaited<ReturnType<typeof prisma.notification.findMany>>[number] & {
+  lotteryListing: { id: string; productName: string; storeName: string };
 };
 
 export default async function DashboardPage() {
@@ -32,7 +45,10 @@ export default async function DashboardPage() {
     highRoiListings,
     uncheckedPriceListings,
     priceErrorListings,
-    newListings
+    newListings,
+    unreadNotificationCount,
+    importantUnreadCount,
+    latestNotifications
   ] = await Promise.all([
     prisma.lotteryListing.findMany({
       where: {
@@ -47,18 +63,46 @@ export default async function DashboardPage() {
       orderBy: [{ applicationPriorityScore: "desc" }, { estimatedProfit: "desc" }],
       take: 8
     }),
-    prisma.lotteryListing.findMany({ where: { ignored: false, status: "active", applicationEndAt: { gte: todayStart, lte: todayEnd } }, orderBy: { applicationEndAt: "asc" }, take: 8 }),
+    prisma.lotteryListing.findMany({
+      where: { ignored: false, status: "active", applicationEndAt: { gte: todayStart, lte: todayEnd } },
+      orderBy: { applicationEndAt: "asc" },
+      take: 8
+    }),
     prisma.collectorRun.findFirst({ orderBy: { startedAt: "desc" } }),
     prisma.watchSource.count({ where: { enabled: true } }),
     prisma.lotteryListing.groupBy({ by: ["applicationStatus"], _count: true }),
-    prisma.lotteryListing.findMany({ where: { applicationStatus: "sold", soldAt: { gte: monthStart }, actualProfit: { not: null } }, select: { actualProfit: true, actualRoi: true } }),
-    prisma.lotteryListing.findMany({ where: { applicationStatus: "sold", actualProfit: { not: null } }, select: { actualProfit: true, actualRoi: true } }),
+    prisma.lotteryListing.findMany({
+      where: { applicationStatus: "sold", soldAt: { gte: monthStart }, actualProfit: { not: null } },
+      select: { actualProfit: true, actualRoi: true }
+    }),
+    prisma.lotteryListing.findMany({
+      where: { applicationStatus: "sold", actualProfit: { not: null } },
+      select: { actualProfit: true, actualRoi: true }
+    }),
     prisma.lotteryListing.count({ where: { applicationStatus: "purchased" } }),
-    prisma.lotteryListing.findMany({ where: { ignored: false, estimatedProfit: { not: null } }, include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } }, orderBy: { estimatedProfit: "desc" }, take: 8 }),
-    prisma.lotteryListing.findMany({ where: { ignored: false, roi: { not: null } }, include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } }, orderBy: { roi: "desc" }, take: 8 }),
+    prisma.lotteryListing.findMany({
+      where: { ignored: false, estimatedProfit: { not: null } },
+      include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } },
+      orderBy: { estimatedProfit: "desc" },
+      take: 8
+    }),
+    prisma.lotteryListing.findMany({
+      where: { ignored: false, roi: { not: null } },
+      include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } },
+      orderBy: { roi: "desc" },
+      take: 8
+    }),
     prisma.lotteryListing.findMany({ where: { ignored: false, priceStatus: "unchecked" }, orderBy: { detectedAt: "desc" }, take: 8 }),
     prisma.lotteryListing.findMany({ where: { ignored: false, priceStatus: "error" }, orderBy: { priceCheckedAt: "desc" }, take: 8 }),
-    prisma.lotteryListing.findMany({ where: { ignored: false, detectedAt: { gte: yesterday } }, orderBy: { detectedAt: "desc" }, take: 8 })
+    prisma.lotteryListing.findMany({ where: { ignored: false, detectedAt: { gte: yesterday } }, orderBy: { detectedAt: "desc" }, take: 8 }),
+    prisma.notification.count({ where: { read: false } }),
+    prisma.notification.count({ where: { read: false, severity: "important" } }),
+    prisma.notification.findMany({
+      where: { read: false },
+      include: { lotteryListing: { select: { id: true, productName: true, storeName: true } } },
+      orderBy: [{ severity: "asc" }, { createdAt: "desc" }],
+      take: 6
+    })
   ]);
 
   const statusCounts = Object.fromEntries(statusGroups.map((item) => [item.applicationStatus, item._count]));
@@ -74,35 +118,54 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="ダッシュボード" description="抽選情報、買取価格、応募状況、確定利益をまとめて確認します。応募や購入処理は行いません。">
-        <div className="flex gap-2">
-          <form action={runCollectorsAction}><button className={buttonClass} type="submit">抽選情報を更新</button></form>
-          <form action={runPriceCollectorsAction}><button className={secondaryButtonClass} type="submit">買取価格を更新</button></form>
+      <PageHeader
+        title="ダッシュボード"
+        description="抽選情報、買取価格、応募状況、確定利益、通知をまとめて確認します。応募や購入処理の自動化は行いません。"
+      >
+        <div className="flex flex-wrap gap-2">
+          <form action={runCollectorsAction}>
+            <button className={buttonClass} type="submit">抽選情報を更新</button>
+          </form>
+          <form action={runPriceCollectorsAction}>
+            <button className={secondaryButtonClass} type="submit">買取価格を更新</button>
+          </form>
+          <form action={generateNotificationsAction}>
+            <button className={secondaryButtonClass} type="submit">通知を更新</button>
+          </form>
         </div>
       </PageHeader>
 
       <div className="mb-6 grid gap-4 md:grid-cols-5">
+        <StatCard label="未読通知" value={`${relativeCount(unreadNotificationCount)}件`} />
+        <StatCard label="重要通知" value={`${relativeCount(importantUnreadCount)}件`} />
         <StatCard label="応募済み件数" value={`${relativeCount(appliedCount)}件`} />
         <StatCard label="当選件数" value={`${relativeCount(wonCount)}件`} />
-        <StatCard label="落選件数" value={`${relativeCount(lostCount)}件`} />
-        <StatCard label="購入済み件数" value={`${relativeCount(purchasedCount)}件`} />
         <StatCard label="売却済み件数" value={`${relativeCount(soldCount)}件`} />
       </div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-5">
+        <StatCard label="落選件数" value={`${relativeCount(lostCount)}件`} />
+        <StatCard label="購入済み件数" value={`${relativeCount(purchasedCount)}件`} />
         <StatCard label="今月の確定利益" value={yen(thisMonthProfit)} />
         <StatCard label="累計確定利益" value={yen(totalProfit)} />
         <StatCard label="当選率" value={percent(winRate)} note="当選・購入・売却 / 応募済み以上" />
-        <StatCard label="平均実ROI" value={percent(avgActualRoi)} />
-        <StatCard label="未売却の商品数" value={`${relativeCount(purchasedUnsoldCount)}件`} />
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-4">
+      <div className="mb-6 grid gap-4 md:grid-cols-5">
+        <StatCard label="平均実ROI" value={percent(avgActualRoi)} />
+        <StatCard label="未売却の商品数" value={`${relativeCount(purchasedUnsoldCount)}件`} />
         <StatCard label="応募候補" value={`${relativeCount(applicationCandidates.length)}件`} note="高信頼価格・利益プラス" />
         <StatCard label="今日締切の抽選" value={`${relativeCount(todayDeadlineListings.length)}件`} />
-        <StatCard label="新しく見つかった抽選" value={`${relativeCount(newListings.length)}件`} note="直近24時間" />
-        <StatCard label="有効な監視ソース" value={`${relativeCount(sourcesCount)}件`} note={latestRun ? `最終収集 ${dateTime(latestRun.finishedAt ?? latestRun.startedAt)}` : "未実行"} />
+        <StatCard label="有効な監視ソース" value={`${relativeCount(sourcesCount)}件`} note={latestRun ? `最終収集: ${dateTime(latestRun.finishedAt ?? latestRun.startedAt)}` : "未実行"} />
       </div>
+
+      <Card className="mb-6 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-semibold">最新通知</h2>
+          <Link href="/notifications" className={secondaryButtonClass}>通知一覧</Link>
+        </div>
+        <NotificationList notifications={latestNotifications} />
+      </Card>
 
       <Card className="mb-6 p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -113,12 +176,34 @@ export default async function DashboardPage() {
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <ListingPanel title="利益率が高い抽選" listings={highProfitListings} href="/lotteries?sort=profit" />
+        <ListingPanel title="利益額が高い抽選" listings={highProfitListings} href="/lotteries?sort=profit" />
         <ListingPanel title="ROIが高い抽選" listings={highRoiListings} href="/lotteries?sort=roi" />
         <ListingPanel title="価格未取得の抽選" listings={uncheckedPriceListings} href="/lotteries?priceStatus=unchecked" />
         <ListingPanel title="価格取得エラーの抽選" listings={priceErrorListings} href="/lotteries?priceStatus=error" />
       </div>
     </>
+  );
+}
+
+function NotificationList({ notifications }: { notifications: NotificationWithListing[] }) {
+  if (notifications.length === 0) return <EmptyState message="未読通知はありません。" />;
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {notifications.map((notification) => (
+        <Link key={notification.id} href={`/lotteries/${notification.lotteryListingId}`} className="rounded-md border border-border p-3 hover:bg-muted">
+          <div className="mb-2 flex items-center gap-2">
+            <Badge tone={notification.severity === "important" ? "danger" : notification.severity === "warning" ? "warning" : "neutral"}>
+              {notificationSeverityLabels[notification.severity] ?? notification.severity}
+            </Badge>
+            <span className="text-xs text-muted-foreground">{dateTime(notification.createdAt)}</span>
+          </div>
+          <div className="font-semibold">{notification.title}</div>
+          <div className="mt-1 text-sm text-muted-foreground">{notification.message}</div>
+          <div className="mt-2 text-xs text-muted-foreground">{notification.lotteryListing.storeName} / {notification.lotteryListing.productName}</div>
+        </Link>
+      ))}
+    </div>
   );
 }
 

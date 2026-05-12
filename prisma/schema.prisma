@@ -31,23 +31,23 @@ model WatchSource {
 }
 
 model LotteryListing {
-  id                       String        @id @default(cuid())
+  id                       String         @id @default(cuid())
   title                    String
   productName              String
   storeName                String
   sourceName               String
   sourceUrl                String
-  lotteryUrl               String        @unique
+  lotteryUrl               String         @unique
   imageUrl                 String?
   description              String?
   applicationStartAt       DateTime?
   applicationEndAt         DateTime?
   resultAnnouncementAt     DateTime?
   purchaseDeadlineAt       DateTime?
-  detectedAt               DateTime      @default(now())
-  lastSeenAt               DateTime      @default(now())
-  status                   String        @default("unknown")
-  confidenceScore          Float         @default(0)
+  detectedAt               DateTime       @default(now())
+  lastSeenAt               DateTime       @default(now())
+  status                   String         @default("unknown")
+  confidenceScore          Float          @default(0)
   matchedKeywords          String?
   confidenceReason         String?
   extractedDatesRaw        String?
@@ -60,16 +60,16 @@ model LotteryListing {
   roi                      Float?
   priceMultiplier          Float?
   priceCheckedAt           DateTime?
-  priceStatus              String        @default("unchecked")
-  applicationPriorityScore Float         @default(0)
-  applicationPriorityLabel String        @default("D")
-  ignored                  Boolean       @default(false)
+  priceStatus              String         @default("unchecked")
+  applicationPriorityScore Float          @default(0)
+  applicationPriorityLabel String         @default("D")
+  ignored                  Boolean        @default(false)
   ignoredReason            String?
   ignoredAt                DateTime?
   userVerdict              String?
   userVerdictMemo          String?
   userVerdictAt            DateTime?
-  applicationStatus        String        @default("not_applied")
+  applicationStatus        String         @default("not_applied")
   appliedAt                DateTime?
   wonAt                    DateTime?
   lostAt                   DateTime?
@@ -87,9 +87,10 @@ model LotteryListing {
   saleDestination          String?
   saleMemo                 String?
   rawText                  String?
-  createdAt                DateTime      @default(now())
-  updatedAt                DateTime      @updatedAt
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
   priceRecords             PriceRecord[]
+  notifications            Notification[]
 
   @@index([productName])
   @@index([storeName])
@@ -109,6 +110,26 @@ model LotteryListing {
   @@index([soldAt])
   @@index([actualProfit])
   @@index([actualRoi])
+}
+
+model Notification {
+  id               String         @id @default(cuid())
+  lotteryListingId String
+  type             String
+  title            String
+  message          String
+  severity         String         @default("info")
+  read             Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  readAt           DateTime?
+  updatedAt        DateTime       @updatedAt
+  lotteryListing   LotteryListing @relation(fields: [lotteryListingId], references: [id], onDelete: Cascade)
+
+  @@index([lotteryListingId])
+  @@index([type])
+  @@index([severity])
+  @@index([read])
+  @@index([createdAt])
 }
 
 model CollectorRun {
