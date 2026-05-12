@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createPriceSource, togglePriceSource } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
 import { dateTime } from "@/lib/format";
@@ -9,6 +10,9 @@ export default async function PriceSourcesPage() {
   return (
     <>
       <PageHeader title="価格ソース" description="{keyword} に商品名をURLエンコードして公開検索ページを取得します。ログイン不要の公開ページだけを登録してください。" />
+      <div className="mb-4 flex justify-end">
+        <Link href="/price-sources/presets" className={secondaryButtonClass}>プリセットから追加</Link>
+      </div>
       <Card className="mb-6 p-4">
         <form action={createPriceSource} className="grid gap-4 md:grid-cols-4">
           <Field label="ソース名"><input className={inputClass} name="name" required /></Field>

@@ -48,27 +48,103 @@ export async function createWatchSourceFromPreset(formData: FormData) {
   const preset = await prisma.sourcePreset.findUnique({ where: { id: str(formData, "id") } });
   if (!preset) return;
 
-  await prisma.watchSource.upsert({
-    where: { url: preset.url },
-    update: {
-      name: preset.name,
-      storeName: preset.storeName,
-      type: preset.type,
-      enabled: false,
-      memo: preset.description
-    },
-    create: {
+  const existing = await prisma.watchSource.findUnique({ where: { url: preset.url } });
+  if (!existing) {
+    await prisma.watchSource.create({
+      data: {
+        name: preset.name,
+        storeName: preset.storeName,
+        url: preset.url,
+        type: preset.type,
+        enabled: false,
+        memo: [preset.description, preset.memo].filter(Boolean).join("\n\n") || null
+      }
+    });
+  }
+  revalidatePath("/");
+  revalidatePath("/sources");
+  revalidatePath("/sources/presets");
+}
+
+export async function createSelectedWatchSourcesFromPresets(formData: FormData) {
+  const ids = formData.getAll("presetIds").filter((value): value is string => typeof value === "string" && value.length > 0);
+  if (ids.length === 0) return;
+
+  const presets = await prisma.sourcePreset.findMany({ where: { id: { in: ids } } });
+  const existing = await prisma.watchSource.findMany({ where: { url: { in: presets.map((preset) => preset.url) } }, select: { url: true } });
+  const existingUrls = new Set(existing.map((source) => source.url));
+  const data = presets
+    .filter((preset) => !existingUrls.has(preset.url))
+    .map((preset) => ({
       name: preset.name,
       storeName: preset.storeName,
       url: preset.url,
       type: preset.type,
       enabled: false,
-      memo: preset.description
-    }
-  });
+      memo: [preset.description, preset.memo].filter(Boolean).join("\n\n") || null
+    }));
+
+  if (data.length > 0) await prisma.watchSource.createMany({ data });
+  revalidatePath("/");
   revalidatePath("/sources");
   revalidatePath("/sources/presets");
-  redirect("/sources");
+}
+
+export async function createPriceSourceFromPreset(formData: FormData) {
+  const preset = await prisma.priceSourcePreset.findUnique({ where: { id: str(formData, "id") } });
+  if (!preset) return;
+
+  const existing = await prisma.priceSource.findFirst({
+    where: { OR: [{ searchUrlTemplate: preset.searchUrlTemplate }, { baseUrl: preset.baseUrl }] }
+  });
+  if (!existing) {
+    await prisma.priceSource.create({
+      data: {
+        name: preset.name,
+        shopName: preset.shopName,
+        baseUrl: preset.baseUrl,
+        searchUrlTemplate: preset.searchUrlTemplate,
+        enabled: false,
+        memo: [preset.description, preset.memo].filter(Boolean).join("\n\n") || null
+      }
+    });
+  }
+  revalidatePath("/");
+  revalidatePath("/price-sources");
+  revalidatePath("/price-sources/presets");
+}
+
+export async function createSelectedPriceSourcesFromPresets(formData: FormData) {
+  const ids = formData.getAll("presetIds").filter((value): value is string => typeof value === "string" && value.length > 0);
+  if (ids.length === 0) return;
+
+  const presets = await prisma.priceSourcePreset.findMany({ where: { id: { in: ids } } });
+  const existing = await prisma.priceSource.findMany({
+    where: {
+      OR: [
+        { searchUrlTemplate: { in: presets.map((preset) => preset.searchUrlTemplate) } },
+        { baseUrl: { in: presets.map((preset) => preset.baseUrl) } }
+      ]
+    },
+    select: { searchUrlTemplate: true, baseUrl: true }
+  });
+  const existingTemplates = new Set(existing.map((source) => source.searchUrlTemplate));
+  const existingBaseUrls = new Set(existing.map((source) => source.baseUrl));
+  const data = presets
+    .filter((preset) => !existingTemplates.has(preset.searchUrlTemplate) && !existingBaseUrls.has(preset.baseUrl))
+    .map((preset) => ({
+      name: preset.name,
+      shopName: preset.shopName,
+      baseUrl: preset.baseUrl,
+      searchUrlTemplate: preset.searchUrlTemplate,
+      enabled: false,
+      memo: [preset.description, preset.memo].filter(Boolean).join("\n\n") || null
+    }));
+
+  if (data.length > 0) await prisma.priceSource.createMany({ data });
+  revalidatePath("/");
+  revalidatePath("/price-sources");
+  revalidatePath("/price-sources/presets");
 }
 
 export async function updateWatchSource(formData: FormData) {

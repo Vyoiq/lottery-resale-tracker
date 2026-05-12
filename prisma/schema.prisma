@@ -184,11 +184,36 @@ model SourcePreset {
   category       String
   description    String?
   defaultEnabled Boolean  @default(false)
+  recommended    Boolean  @default(false)
+  tags           String?
+  memo           String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([category])
+  @@index([recommended])
   @@index([storeName])
+}
+
+model PriceSourcePreset {
+  id                String   @id @default(cuid())
+  name              String
+  shopName          String
+  baseUrl           String
+  searchUrlTemplate String   @unique
+  category          String
+  description       String?
+  defaultEnabled    Boolean  @default(false)
+  recommended       Boolean  @default(false)
+  tags              String?
+  memo              String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([category])
+  @@index([recommended])
+  @@index([shopName])
+  @@index([baseUrl])
 }
 
 model PriceSource {

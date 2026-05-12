@@ -1,6 +1,5 @@
 import { PrismaClient } from "@prisma/client";
 import { calculatePriceMetrics } from "../lib/priceCalculations";
-import { calculateActualSaleMetrics } from "../lib/salesCalculations";
 import { recalculateAllListingPriorities } from "../lib/priorityService";
 
 const prisma = new PrismaClient();
@@ -20,6 +19,7 @@ async function main() {
   await prisma.priceCollectorRun.deleteMany();
   await prisma.priceRecord.deleteMany();
   await prisma.priceSource.deleteMany();
+  await prisma.priceSourcePreset.deleteMany();
   await prisma.exclusionKeyword.deleteMany();
   await prisma.collectorRunItem.deleteMany();
   await prisma.collectorRun.deleteMany();
@@ -35,7 +35,7 @@ async function main() {
         url: "https://www.pokemoncenter-online.com/",
         type: "html",
         enabled: false,
-        memo: "公開ページのみを低頻度で巡回してください。サイトポリシーを確認してから有効化します。"
+        memo: "初期サンプルです。サイトポリシーを確認してから有効化してください。"
       },
       {
         name: "サンプルRSS",
@@ -55,18 +55,125 @@ async function main() {
         storeName: "ポケモンセンターオンライン",
         url: "https://www.pokemoncenter-online.com/",
         type: "html",
-        category: "ポケモンカード",
-        description: "公開トップページ。実運用前にサイトポリシーを確認してください。",
-        defaultEnabled: false
+        category: "pokemon",
+        description: "公式オンラインストアの公開トップページです。抽選販売ページやお知らせURLは実運用前に確認してください。",
+        defaultEnabled: false,
+        recommended: true,
+        tags: "pokemon,ポケモンカード,公式,BOX",
+        memo: "要確認: 実際に巡回する前にサイトポリシーと対象URLを確認してください。"
       },
       {
-        name: "ポケモンカードゲーム トレーナーズウェブサイト",
+        name: "ポケモンカードゲーム公式",
         storeName: "ポケモンカード公式",
         url: "https://www.pokemon-card.com/",
         type: "html",
-        category: "ポケモンカード",
-        description: "公式情報の公開ページ候補です。大量巡回はしないでください。",
-        defaultEnabled: false
+        category: "pokemon",
+        description: "公式情報の公開ページ候補です。抽選販売情報そのものではない可能性があります。",
+        defaultEnabled: false,
+        recommended: true,
+        tags: "pokemon,ポケカ,公式,ニュース",
+        memo: "要確認: ニュースや商品ページなど、より適切なURLがあれば差し替えてください。"
+      },
+      {
+        name: "ヨドバシ.com お知らせ候補",
+        storeName: "ヨドバシカメラ",
+        url: "https://www.yodobashi.com/",
+        type: "html",
+        category: "electronics",
+        description: "抽選販売やお知らせページの候補です。具体的な抽選ページURLは要確認です。",
+        defaultEnabled: false,
+        recommended: false,
+        tags: "家電,抽選販売,ゲーム,トレカ",
+        memo: "要確認: 抽選販売ページのURLが変わる可能性があります。"
+      },
+      {
+        name: "ビックカメラ 抽選販売候補",
+        storeName: "ビックカメラ",
+        url: "https://www.biccamera.com/",
+        type: "html",
+        category: "electronics",
+        description: "抽選販売ページ候補です。実際の公開ページURLに差し替えてください。",
+        defaultEnabled: false,
+        recommended: false,
+        tags: "家電,抽選販売,ゲーム",
+        memo: "要確認: ログイン不要の公開ページのみを対象にしてください。"
+      },
+      {
+        name: "GEO お知らせ候補",
+        storeName: "GEO",
+        url: "https://geo-online.co.jp/",
+        type: "html",
+        category: "trading_card",
+        description: "GEOのお知らせ/抽選販売候補です。具体的な公開URLは要確認です。",
+        defaultEnabled: false,
+        recommended: false,
+        tags: "トレカ,ゲーム,抽選販売",
+        memo: "要確認: URLと利用規約を確認してから有効化してください。"
+      },
+      {
+        name: "TSUTAYA トレカお知らせ候補",
+        storeName: "TSUTAYA",
+        url: "https://tsutaya.tsite.jp/",
+        type: "html",
+        category: "trading_card",
+        description: "TSUTAYAの抽選/トレカお知らせ候補です。具体的な公開URLは要確認です。",
+        defaultEnabled: false,
+        recommended: false,
+        tags: "トレカ,抽選販売,お知らせ",
+        memo: "要確認: 店舗別ページやキャンペーンページはURL変更の可能性があります。"
+      },
+      {
+        name: "カードショップお知らせRSS プレースホルダー",
+        storeName: "カードショップ例",
+        url: "https://example.com/card-shop-news.xml",
+        type: "rss",
+        category: "trading_card",
+        description: "カードショップ系のお知らせRSSを登録するためのプレースホルダーです。",
+        defaultEnabled: false,
+        recommended: false,
+        tags: "トレカ,RSS,買取,抽選",
+        memo: "要差し替え: 実在する公開RSSに変更してください。"
+      }
+    ]
+  });
+
+  await prisma.priceSourcePreset.createMany({
+    data: [
+      {
+        name: "トレカ買取検索 プレースホルダー",
+        shopName: "トレカ買取店例",
+        baseUrl: "https://example.com/",
+        searchUrlTemplate: "https://example.com/search?q={keyword}",
+        category: "trading_card",
+        description: "{keyword} に商品名をURLエンコードして差し込む価格検索URLの例です。",
+        defaultEnabled: false,
+        recommended: false,
+        tags: "トレカ,買取,検索,要差し替え",
+        memo: "要差し替え: 実在するログイン不要の公開検索ページに変更してください。"
+      },
+      {
+        name: "カードショップ買取検索 プレースホルダー",
+        shopName: "カードショップ例",
+        baseUrl: "https://example.com/card/",
+        searchUrlTemplate: "https://example.com/card/search?keyword={keyword}",
+        category: "trading_card",
+        description: "カードショップ系の買取検索ページを登録するためのプレースホルダーです。",
+        defaultEnabled: false,
+        recommended: false,
+        tags: "ポケカ,BOX,買取価格,要確認",
+        memo: "要確認: 販売価格ページではなく買取価格ページを指定してください。"
+      },
+      {
+        name: "ポケモンカード買取検索 プレースホルダー",
+        shopName: "ポケカ買取店例",
+        baseUrl: "https://example.com/pokemon-card/",
+        searchUrlTemplate: "https://example.com/pokemon-card/buy?q={keyword}",
+        category: "pokemon",
+        description: "ポケモンカード向け買取検索URLの例です。",
+        defaultEnabled: false,
+        recommended: false,
+        tags: "pokemon,ポケカ,スペシャルBOX,買取",
+        memo: "要差し替え: 実在する公開ページの検索URLテンプレートに変更してください。"
       }
     ]
   });
@@ -98,7 +205,6 @@ async function main() {
   const retailPrice = 2090;
   const bestBuyPrice = 31000;
   const metrics = calculatePriceMetrics({ retailPrice, bestBuyPrice });
-  const actual = calculateActualSaleMetrics({ purchasePrice: retailPrice, salePrice: bestBuyPrice, shippingCost: 0, fee: 0 });
 
   const listing = await prisma.lotteryListing.create({
     data: {

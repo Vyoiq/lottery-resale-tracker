@@ -52,7 +52,12 @@ export default async function DashboardPage() {
     latestNotifications,
     latestBackup,
     backupCount,
-    latestOperationRun
+    latestOperationRun,
+    activePriceSourceCount,
+    recommendedSourcePresets,
+    recommendedPriceSourcePresets,
+    existingWatchSourceUrls,
+    existingPriceSources
   ] = await Promise.all([
     prisma.lotteryListing.findMany({
       where: {
@@ -109,7 +114,12 @@ export default async function DashboardPage() {
     }),
     prisma.backupRecord.findFirst({ orderBy: { createdAt: "desc" } }),
     prisma.backupRecord.count(),
-    prisma.operationRun.findFirst({ orderBy: { startedAt: "desc" } })
+    prisma.operationRun.findFirst({ orderBy: { startedAt: "desc" } }),
+    prisma.priceSource.count({ where: { enabled: true } }),
+    prisma.sourcePreset.findMany({ where: { recommended: true }, select: { url: true } }),
+    prisma.priceSourcePreset.findMany({ where: { recommended: true }, select: { baseUrl: true, searchUrlTemplate: true } }),
+    prisma.watchSource.findMany({ select: { url: true } }),
+    prisma.priceSource.findMany({ select: { baseUrl: true, searchUrlTemplate: true } })
   ]);
 
   const statusCounts = Object.fromEntries(statusGroups.map((item) => [item.applicationStatus, item._count]));
@@ -122,6 +132,12 @@ export default async function DashboardPage() {
   const totalProfit = sum(allSold.map((item) => item.actualProfit));
   const avgActualRoi = average(allSold.map((item) => item.actualRoi));
   const winRate = appliedCount > 0 ? (wonCount / appliedCount) * 100 : null;
+  const existingWatchUrls = new Set(existingWatchSourceUrls.map((source) => source.url));
+  const existingPriceBaseUrls = new Set(existingPriceSources.map((source) => source.baseUrl));
+  const existingPriceTemplates = new Set(existingPriceSources.map((source) => source.searchUrlTemplate));
+  const unaddedRecommendedPresetCount =
+    recommendedSourcePresets.filter((preset) => !existingWatchUrls.has(preset.url)).length +
+    recommendedPriceSourcePresets.filter((preset) => !existingPriceBaseUrls.has(preset.baseUrl) && !existingPriceTemplates.has(preset.searchUrlTemplate)).length;
 
   return (
     <>
@@ -171,6 +187,18 @@ export default async function DashboardPage() {
         <StatCard label="応募候補" value={`${relativeCount(applicationCandidates.length)}件`} note="高信頼価格・利益プラス" />
         <StatCard label="今日締切の抽選" value={`${relativeCount(todayDeadlineListings.length)}件`} />
         <StatCard label="有効な監視ソース" value={`${relativeCount(sourcesCount)}件`} note={latestRun ? `最終収集: ${dateTime(latestRun.finishedAt ?? latestRun.startedAt)}` : "未実行"} />
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <StatCard label="有効な価格ソース" value={`${relativeCount(activePriceSourceCount)}件`} />
+        <StatCard label="未追加の推奨プリセット" value={`${relativeCount(unaddedRecommendedPresetCount)}件`} />
+        <Card className="p-4">
+          <div className="text-xs font-medium text-muted-foreground">プリセット管理</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href="/sources/presets" className={secondaryButtonClass}>監視ソース</Link>
+            <Link href="/price-sources/presets" className={secondaryButtonClass}>価格ソース</Link>
+          </div>
+        </Card>
       </div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-2">

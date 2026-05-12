@@ -1,6 +1,5 @@
-import { createSelectedWatchSourcesFromPresets, createWatchSourceFromPreset } from "@/lib/actions";
+import { createPriceSourceFromPreset, createSelectedPriceSourcesFromPresets } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
-import { sourceTypeLabels } from "@/lib/format";
 import { Badge, buttonClass, Card, EmptyState, inputClass, PageHeader, secondaryButtonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +12,7 @@ const categoryLabels: Record<string, string> = {
   other: "その他"
 };
 
-export default async function SourcePresetsPage({
+export default async function PriceSourcePresetsPage({
   searchParams
 }: {
   searchParams: { q?: string; category?: string; recommended?: string };
@@ -22,7 +21,7 @@ export default async function SourcePresetsPage({
   const category = searchParams.category?.trim() ?? "";
   const recommended = searchParams.recommended === "true";
 
-  const presets = await prisma.sourcePreset.findMany({
+  const presets = await prisma.priceSourcePreset.findMany({
     where: {
       AND: [
         category ? { category } : {},
@@ -31,8 +30,9 @@ export default async function SourcePresetsPage({
           ? {
               OR: [
                 { name: { contains: q } },
-                { storeName: { contains: q } },
-                { url: { contains: q } },
+                { shopName: { contains: q } },
+                { baseUrl: { contains: q } },
+                { searchUrlTemplate: { contains: q } },
                 { description: { contains: q } },
                 { tags: { contains: q } },
                 { memo: { contains: q } }
@@ -41,16 +41,17 @@ export default async function SourcePresetsPage({
           : {}
       ]
     },
-    orderBy: [{ recommended: "desc" }, { category: "asc" }, { storeName: "asc" }, { name: "asc" }]
+    orderBy: [{ recommended: "desc" }, { category: "asc" }, { shopName: "asc" }, { name: "asc" }]
   });
-  const existing = await prisma.watchSource.findMany({ select: { url: true } });
-  const existingUrls = new Set(existing.map((source) => source.url));
+  const existing = await prisma.priceSource.findMany({ select: { searchUrlTemplate: true, baseUrl: true } });
+  const existingTemplates = new Set(existing.map((source) => source.searchUrlTemplate));
+  const existingBaseUrls = new Set(existing.map((source) => source.baseUrl));
 
   return (
     <>
       <PageHeader
-        title="監視ソースプリセット"
-        description="公開ページ/RSSの監視候補を WatchSource にコピーします。追加時は必ず無効状態になり、巡回前にURLと利用規約を確認してください。"
+        title="価格ソースプリセット"
+        description="買取価格検索ページの候補を PriceSource にコピーします。追加時は必ず無効状態になり、取得前にURLと利用規約を確認してください。"
       />
 
       <Card className="mb-4 p-4">
@@ -69,20 +70,20 @@ export default async function SourcePresetsPage({
       </Card>
 
       {presets.length === 0 ? (
-        <EmptyState message="条件に一致するプリセットはありません。" />
+        <EmptyState message="条件に一致する価格ソースプリセットはありません。" />
       ) : (
-        <form action={createSelectedWatchSourcesFromPresets}>
+        <form action={createSelectedPriceSourcesFromPresets}>
           <div className="mb-3 flex justify-end">
             <button className={buttonClass} type="submit">選択したプリセットを追加</button>
           </div>
           <Card className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-sm">
+            <table className="w-full min-w-[1180px] text-sm">
               <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">選択</th>
                   <th className="px-4 py-3">ソース</th>
-                  <th className="px-4 py-3">店舗</th>
-                  <th className="px-4 py-3">URL</th>
+                  <th className="px-4 py-3">買取店</th>
+                  <th className="px-4 py-3">検索URLテンプレート</th>
                   <th className="px-4 py-3">カテゴリ</th>
                   <th className="px-4 py-3">タグ</th>
                   <th className="px-4 py-3">説明</th>
@@ -91,7 +92,7 @@ export default async function SourcePresetsPage({
               </thead>
               <tbody>
                 {presets.map((preset) => {
-                  const added = existingUrls.has(preset.url);
+                  const added = existingTemplates.has(preset.searchUrlTemplate) || existingBaseUrls.has(preset.baseUrl);
                   return (
                     <tr key={preset.id} className="border-t border-border align-top">
                       <td className="px-4 py-3">
@@ -104,10 +105,10 @@ export default async function SourcePresetsPage({
                           {added ? <Badge tone="success">追加済み</Badge> : null}
                         </div>
                       </td>
-                      <td className="px-4 py-3">{preset.storeName}</td>
-                      <td className="max-w-sm truncate px-4 py-3">
-                        <a className="text-primary" href={preset.url} target="_blank">{preset.url}</a>
-                        <div className="text-xs text-muted-foreground">{sourceTypeLabels[preset.type] ?? preset.type}</div>
+                      <td className="px-4 py-3">{preset.shopName}</td>
+                      <td className="max-w-md truncate px-4 py-3">
+                        {preset.searchUrlTemplate}
+                        <div className="text-xs text-muted-foreground">{preset.baseUrl}</div>
                       </td>
                       <td className="px-4 py-3">{categoryLabels[preset.category] ?? preset.category}</td>
                       <td className="max-w-40 px-4 py-3 text-xs text-muted-foreground">{preset.tags ?? "-"}</td>
@@ -116,7 +117,7 @@ export default async function SourcePresetsPage({
                         {preset.memo ? <div className="mt-1 text-amber-700">{preset.memo}</div> : null}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button className={secondaryButtonClass} formAction={createWatchSourceFromPreset} name="id" value={preset.id} type="submit" disabled={added}>
+                        <button className={secondaryButtonClass} formAction={createPriceSourceFromPreset} name="id" value={preset.id} type="submit" disabled={added}>
                           {added ? "追加済み" : "追加"}
                         </button>
                       </td>
