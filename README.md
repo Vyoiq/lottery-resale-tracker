@@ -6,7 +6,7 @@
 
 ## 現在の主な機能
 
-v0.2.0 以降では、次の機能を実装しています。
+v0.3.0 以降では、次の機能を実装しています。
 
 - 公開ページまたはRSSからの抽選販売情報収集
 - 監視ソース管理とプリセット追加
@@ -26,6 +26,7 @@ v0.2.0 以降では、次の機能を実装しています。
 - SQLite DB の手動バックアップ、一覧、ダウンロード、削除
 - JSONエクスポート、抽選一覧CSV、価格履歴CSV、応募・売却履歴CSV
 - 運用設定、一括実行、運用実行ログ
+- Windows タスクスケジューラ向け `.bat` / `.ps1` 実行スクリプト
 - ダッシュボードでの応募候補、価格未取得、確定利益、当選率の確認
 - 分析ページでの月別利益、商品別利益、店舗別当選率の確認
 - 売却履歴CSVエクスポート
@@ -260,6 +261,63 @@ npm run backup
 
 Windows タスクスケジューラで定期実行する場合は、タスクの開始場所をこのプロジェクトディレクトリにし、実行コマンドを `npm run operate` にします。タスクスケジューラ自体の登録はこのアプリでは行いません。アクセス頻度を抑えるため、監視ソースを必要最小限にし、実行間隔は十分に長く設定してください。
 
+## Windows タスクスケジューラでの定期実行
+
+Windows で定期実行しやすいように、`scripts/windows/` に実行スクリプトを用意しています。
+
+用意している `.bat`:
+- `scripts/windows/operate.bat`
+- `scripts/windows/backup.bat`
+- `scripts/windows/collect.bat`
+- `scripts/windows/collect-prices.bat`
+- `scripts/windows/notifications.bat`
+
+PowerShell版:
+- `scripts/windows/operate.ps1`
+- `scripts/windows/backup.ps1`
+
+各スクリプトは `C:\Users\cocac\Lottery Resale Tracker` に移動してから npm script を実行し、結果を `logs/` に保存します。
+
+ログ:
+- `logs/operate.log`
+- `logs/backup.log`
+- `logs/collect.log`
+- `logs/collect-prices.log`
+- `logs/notifications.log`
+
+初回確認:
+1. Node.js がインストール済みであることを確認します。
+2. 必要な `.env` をプロジェクト直下に置きます。
+3. まず `scripts/windows/operate.bat` や `scripts/windows/backup.bat` をダブルクリックして手動確認します。
+4. 失敗した場合は `logs/` の該当ログを確認します。
+
+タスクスケジューラの開き方:
+1. Windows のスタートメニューで「タスク スケジューラ」を検索して開きます。
+2. 右側の「基本タスクの作成」を選びます。
+3. 名前を入力します。例: `Lottery Resale Tracker Operate`
+4. トリガーで「毎日」を選びます。
+5. 操作で「プログラムの開始」を選びます。
+
+毎日朝8時に `operate.bat` を実行する例:
+- プログラム/スクリプト: `C:\Users\cocac\Lottery Resale Tracker\scripts\windows\operate.bat`
+- 開始（オプション）: `C:\Users\cocac\Lottery Resale Tracker`
+- トリガー: 毎日 8:00
+
+毎日夜23時に `backup.bat` を実行する例:
+- プログラム/スクリプト: `C:\Users\cocac\Lottery Resale Tracker\scripts\windows\backup.bat`
+- 開始（オプション）: `C:\Users\cocac\Lottery Resale Tracker`
+- トリガー: 毎日 23:00
+
+失敗した場合の確認ポイント:
+- `logs/` のログに `failed` や `exitCode` が出ていないか確認します。
+- `npm install` が完了しているか確認します。
+- `.env` がプロジェクト直下にあり、`DATABASE_URL` が正しいか確認します。
+- PCがスリープしていると実行されない可能性があります。
+- タスクの「開始（オプション）」がプロジェクトディレクトリになっているか確認します。
+- 実行ユーザーがプロジェクトフォルダ、`logs/`、`backups/` に書き込めるか確認します。
+
+`logs/` と `backups/` はGit管理対象外です。スクリプト本体の `scripts/windows/*.bat` と `scripts/windows/*.ps1` はGit管理対象です。
+
 ## 応募優先度スコア
 
 `LotteryListing` ごとに 0-100 の応募優先度スコアを計算します。
@@ -394,5 +452,6 @@ collector は公開ページの取得、抽選情報の検出、買取価格候�
 - `.next`
 - `prisma/dev.db`
 - `backups/`
+- `logs/`
 
 バックアップファイル自体もリポジトリに含めないでください。
