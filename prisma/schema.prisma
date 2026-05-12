@@ -266,3 +266,27 @@ model BackupRecord {
   @@index([createdAt])
   @@index([filename])
 }
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+model OperationRun {
+  id         String    @id @default(cuid())
+  type       String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  success    Boolean   @default(false)
+  message    String?
+  createdAt  DateTime  @default(now())
+
+  @@index([type])
+  @@index([startedAt])
+  @@index([success])
+}

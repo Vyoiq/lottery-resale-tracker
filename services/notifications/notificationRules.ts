@@ -41,15 +41,22 @@ export type NotificationListing = {
   salePrice: number | null;
 };
 
+export type NotificationRuleOptions = {
+  minProfit?: number;
+  minRoi?: number;
+};
+
 const oneDayMs = 24 * 60 * 60 * 1000;
 
-export function buildNotificationCandidates(listing: NotificationListing, now = new Date()): NotificationCandidate[] {
+export function buildNotificationCandidates(listing: NotificationListing, now = new Date(), options: NotificationRuleOptions = {}): NotificationCandidate[] {
   if (listing.ignored || listing.status === "ignored") return [];
 
   const candidates: NotificationCandidate[] = [];
   const bestConfidence = listing.priceRecords[0]?.confidenceScore ?? 0;
   const profit = listing.estimatedProfit ?? 0;
   const roi = listing.roi ?? 0;
+  const minProfit = options.minProfit ?? 3000;
+  const minRoi = options.minRoi ?? 100;
   const isActive = listing.status === "active";
 
   if (listing.applicationPriorityLabel === "S" && isActive) {
@@ -70,8 +77,8 @@ export function buildNotificationCandidates(listing: NotificationListing, now = 
     });
   }
 
-  if (listing.priceStatus === "found" && (profit >= 3000 || roi >= 100)) {
-    const severity: NotificationSeverity = profit >= 3000 && roi >= 100 && bestConfidence >= 0.7 ? "important" : "info";
+  if (listing.priceStatus === "found" && (profit >= minProfit || roi >= minRoi)) {
+    const severity: NotificationSeverity = profit >= minProfit && roi >= minRoi && bestConfidence >= 0.7 ? "important" : "info";
     candidates.push({
       type: "price_found",
       title: "利益が見込める価格候補があります",

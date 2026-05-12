@@ -22,7 +22,7 @@ export async function createBackup(input: CreateBackupInput = {}, client: Prisma
 
   // Flush WAL pages before copying so the backup is useful even when SQLite uses WAL mode.
   try {
-    await client.$executeRawUnsafe("PRAGMA wal_checkpoint(TRUNCATE)");
+    await client.$queryRawUnsafe("PRAGMA wal_checkpoint(TRUNCATE)");
   } catch {
     // Copying still works for the default rollback-journal mode. The caller should not fail only because checkpoint is unavailable.
   }
@@ -54,6 +54,20 @@ export async function deleteBackup(id: string, client: PrismaClient = defaultPri
 
   await client.backupRecord.delete({ where: { id } });
   return record;
+}
+
+export async function pruneBackups(retentionCount: number, client: PrismaClient = defaultPrisma) {
+  const safeRetention = Math.max(1, Math.trunc(retentionCount));
+  const records = await client.backupRecord.findMany({
+    orderBy: { createdAt: "desc" }
+  });
+  const expired = records.slice(safeRetention);
+
+  for (const record of expired) {
+    await deleteBackup(record.id, client);
+  }
+
+  return expired.length;
 }
 
 export function resolveBackupRecordPath(recordPath: string) {

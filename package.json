@@ -12,7 +12,9 @@
     "seed": "prisma db seed",
     "collect": "tsx scripts/collect.ts",
     "collect:prices": "tsx scripts/collect-prices.ts",
-    "notifications": "tsx scripts/notifications.ts"
+    "notifications": "tsx scripts/notifications.ts",
+    "operate": "tsx scripts/operate.ts",
+    "backup": "tsx scripts/backup.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

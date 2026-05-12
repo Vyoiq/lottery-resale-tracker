@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "@/lib/prisma";
+import { getOperationSettings } from "@/lib/appSettings";
 import { buildNotificationCandidates } from "./notificationRules";
 
 export type GenerateNotificationsResult = {
@@ -10,6 +11,7 @@ export type GenerateNotificationsResult = {
 };
 
 export async function generateNotifications(client: PrismaClient = defaultPrisma): Promise<GenerateNotificationsResult> {
+  const settings = await getOperationSettings(client);
   const listings = await client.lotteryListing.findMany({
     where: { ignored: false },
     include: {
@@ -26,7 +28,10 @@ export async function generateNotifications(client: PrismaClient = defaultPrisma
   const now = new Date();
 
   for (const listing of listings) {
-    const candidates = buildNotificationCandidates(listing, now);
+    const candidates = buildNotificationCandidates(listing, now, {
+      minProfit: settings.notificationMinProfit,
+      minRoi: settings.notificationMinRoi
+    });
     candidateCount += candidates.length;
 
     for (const candidate of candidates) {

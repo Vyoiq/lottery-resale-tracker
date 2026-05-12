@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createBackupAction, generateNotificationsAction, runCollectorsAction, runPriceCollectorsAction } from "@/lib/actions";
+import { createBackupAction, generateNotificationsAction, runCollectorsAction, runOperationTasksAction, runPriceCollectorsAction } from "@/lib/actions";
 import { endOfDay, startOfDay, subDays } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
@@ -14,6 +14,7 @@ import {
   yen
 } from "@/lib/format";
 import { Badge, buttonClass, Card, EmptyState, PageHeader, StatCard, secondaryButtonClass } from "@/components/ui";
+import { operationTypeLabel } from "@/services/operations/operationRunner";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,8 @@ export default async function DashboardPage() {
     importantUnreadCount,
     latestNotifications,
     latestBackup,
-    backupCount
+    backupCount,
+    latestOperationRun
   ] = await Promise.all([
     prisma.lotteryListing.findMany({
       where: {
@@ -106,7 +108,8 @@ export default async function DashboardPage() {
       take: 6
     }),
     prisma.backupRecord.findFirst({ orderBy: { createdAt: "desc" } }),
-    prisma.backupRecord.count()
+    prisma.backupRecord.count(),
+    prisma.operationRun.findFirst({ orderBy: { startedAt: "desc" } })
   ]);
 
   const statusCounts = Object.fromEntries(statusGroups.map((item) => [item.applicationStatus, item._count]));
@@ -135,6 +138,9 @@ export default async function DashboardPage() {
           </form>
           <form action={generateNotificationsAction}>
             <button className={secondaryButtonClass} type="submit">通知を更新</button>
+          </form>
+          <form action={runOperationTasksAction}>
+            <button className={secondaryButtonClass} type="submit">運用タスクをまとめて実行</button>
           </form>
           <form action={createBackupAction}>
             <button className={secondaryButtonClass} type="submit">バックアップ作成</button>
@@ -171,6 +177,23 @@ export default async function DashboardPage() {
         <StatCard label="最終バックアップ日時" value={latestBackup ? dateTime(latestBackup.createdAt) : "-"} note={latestBackup?.filename ?? "未作成"} />
         <StatCard label="バックアップ件数" value={`${relativeCount(backupCount)}件`} note="backups/ に保存" />
       </div>
+
+      <Card className="mb-6 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-semibold">最新の運用実行結果</h2>
+          <Link href="/operation-runs" className={secondaryButtonClass}>運用ログ</Link>
+        </div>
+        {latestOperationRun ? (
+          <div className="grid gap-2 text-sm md:grid-cols-[160px_160px_120px_1fr]">
+            <div><span className="text-muted-foreground">種別</span><div className="font-medium">{operationTypeLabel(latestOperationRun.type)}</div></div>
+            <div><span className="text-muted-foreground">開始</span><div>{dateTime(latestOperationRun.startedAt)}</div></div>
+            <div><span className="text-muted-foreground">結果</span><div><Badge tone={latestOperationRun.success ? "success" : "danger"}>{latestOperationRun.success ? "成功" : "失敗"}</Badge></div></div>
+            <div><span className="text-muted-foreground">メッセージ</span><pre className="mt-1 whitespace-pre-wrap font-sans text-muted-foreground">{latestOperationRun.message ?? "-"}</pre></div>
+          </div>
+        ) : (
+          <EmptyState message="運用タスクはまだ実行されていません。" />
+        )}
+      </Card>
 
       <Card className="mb-6 p-4">
         <div className="mb-3 flex items-center justify-between">

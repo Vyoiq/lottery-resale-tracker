@@ -13,6 +13,8 @@ const daysFromNow = (days: number) => {
 };
 
 async function main() {
+  await prisma.operationRun.deleteMany();
+  await prisma.appSetting.deleteMany();
   await prisma.backupRecord.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.priceCollectorRun.deleteMany();

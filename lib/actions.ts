@@ -7,9 +7,11 @@ import { collectPricesForListing, runPriceCollectors } from "@/services/priceCol
 import { refreshListingBestPrice } from "@/services/priceCollectors/savePriceRecords";
 import { generateNotifications } from "@/services/notifications/generateNotifications";
 import { createBackup, deleteBackup } from "@/services/backups/backupService";
+import { operationSettingsFromForm, saveOperationSettings } from "@/lib/appSettings";
 import { prisma } from "@/lib/prisma";
 import { recalculateAllListingPriorities, recalculateListingPriority } from "@/lib/priorityService";
 import { calculateActualSaleMetrics } from "@/lib/salesCalculations";
+import { runFullOperation, runOperationTask, operationRunTypes } from "@/services/operations/operationRunner";
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -385,6 +387,24 @@ export async function deleteBackupAction(formData: FormData) {
   revalidatePath("/backups");
 }
 
+export async function updateOperationSettingsAction(formData: FormData) {
+  await saveOperationSettings(operationSettingsFromForm(formData));
+  revalidatePath("/");
+  revalidatePath("/settings/operations");
+}
+
+export async function runOperationTasksAction() {
+  await runFullOperation();
+  revalidateOperationViews();
+}
+
+export async function runSingleOperationTaskAction(formData: FormData) {
+  const type = str(formData, "type");
+  if (!operationRunTypes.includes(type as (typeof operationRunTypes)[number]) || type === "full_run") return;
+  await runOperationTask(type as Exclude<(typeof operationRunTypes)[number], "full_run">);
+  revalidateOperationViews();
+}
+
 function revalidateListingViews(id: string) {
   revalidatePath("/");
   revalidatePath("/lotteries");
@@ -393,4 +413,15 @@ function revalidateListingViews(id: string) {
   revalidatePath("/settings/score-tuning");
   revalidatePath("/analytics");
   revalidatePath("/notifications");
+}
+
+function revalidateOperationViews() {
+  revalidatePath("/");
+  revalidatePath("/operation-runs");
+  revalidatePath("/settings/operations");
+  revalidatePath("/runs");
+  revalidatePath("/backups");
+  revalidatePath("/lotteries");
+  revalidatePath("/notifications");
+  revalidatePath("/price-sources");
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Archive,
+  Activity,
   BarChart3,
   Bell,
   CircleDollarSign,
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/", label: "ダッシュボード", icon: Home },
   { href: "/notifications", label: "通知", icon: Bell },
   { href: "/backups", label: "バックアップ", icon: Archive },
+  { href: "/settings/operations", label: "運用設定", icon: Activity },
   { href: "/lotteries", label: "抽選一覧", icon: ClipboardList },
   { href: "/analytics", label: "分析", icon: BarChart3 },
   { href: "/review", label: "誤検出レビュー", icon: BarChart3 },
