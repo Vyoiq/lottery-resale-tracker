@@ -4,7 +4,7 @@ import { applicationStatuses, listingStatuses, userVerdicts } from "@/lib/domain
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
 import { applicationStatusLabels, dateOnly, listingStatusLabels, multiple, percent, priceStatusLabels, userVerdictLabels, yen } from "@/lib/format";
-import { Badge, buttonClass, Card, EmptyState, inputClass, PageHeader, secondaryButtonClass } from "@/components/ui";
+import { Badge, buttonClass, Card, dangerButtonClass, EmptyState, inputClass, PageHeader, secondaryButtonClass, smallButtonClass } from "@/components/ui";
 
 function tone(status: string) {
   if (["active", "found", "good", "sold", "won", "purchased"].includes(status)) return "success";
@@ -79,14 +79,14 @@ export default async function LotteriesPage({
   return (
     <>
       <PageHeader title="抽選一覧" description="抽選情報、価格候補、応募状況、購入・売却実績を一覧で確認します。">
-        <div className="flex gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <form action={runCollectorsAction}><button className={buttonClass} type="submit">抽選情報を更新</button></form>
           <form action={runPriceCollectorsAction}><button className={secondaryButtonClass} type="submit">買取価格を更新</button></form>
         </div>
       </PageHeader>
 
       <Card className="mb-4 p-4">
-        <form className="grid gap-3 md:grid-cols-[1fr_140px_140px_120px_120px_130px_120px_120px_140px_auto]">
+        <form className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_150px_150px_130px_130px_140px_130px_130px_150px_auto]">
           <input className={inputClass} name="q" defaultValue={q} placeholder="キーワード検索" />
           <input className={inputClass} name="productName" defaultValue={productName} placeholder="商品名" />
           <input className={inputClass} name="storeName" defaultValue={storeName} placeholder="店舗名" />
@@ -127,8 +127,15 @@ export default async function LotteriesPage({
       {listings.length === 0 ? (
         <EmptyState message="抽選情報がありません。" />
       ) : (
-        <Card className="overflow-x-auto">
-          <table className="w-full min-w-[1280px] text-sm">
+        <>
+        <div className="grid gap-3 md:hidden">
+          {listings.map((listing) => {
+            const priceConfidence = listing.priceRecords[0]?.confidenceScore ?? 0;
+            return <LotteryMobileCard key={listing.id} listing={listing} priceConfidence={priceConfidence} />;
+          })}
+        </div>
+        <Card className="hidden overflow-x-auto md:block">
+          <table className="w-full min-w-[1180px] text-sm">
             <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">商品</th>
@@ -194,10 +201,10 @@ export default async function LotteriesPage({
                         {listing.ignored ? (
                           <form action={unignoreLotteryListing}><input type="hidden" name="id" value={listing.id} /><button className={secondaryButtonClass} type="submit">無視解除</button></form>
                         ) : (
-                          <form action={ignoreLotteryListing} className="flex gap-2">
-                            <input type="hidden" name="id" value={listing.id} />
-                            <input className="h-10 w-28 rounded-md border border-border px-2 text-xs" name="ignoredReason" placeholder="理由" />
-                            <button className="h-10 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50" type="submit">無視</button>
+                        <form action={ignoreLotteryListing} className="flex gap-2">
+                          <input type="hidden" name="id" value={listing.id} />
+                          <input className="h-10 w-28 rounded-md border border-border px-2 text-xs" name="ignoredReason" placeholder="理由" />
+                            <button className={dangerButtonClass} type="submit">無視</button>
                           </form>
                         )}
                       </div>
@@ -208,9 +215,90 @@ export default async function LotteriesPage({
             </tbody>
           </table>
         </Card>
+        </>
       )}
     </>
   );
+}
+
+function LotteryMobileCard({
+  listing,
+  priceConfidence
+}: {
+  listing: Awaited<ReturnType<typeof prisma.lotteryListing.findMany>>[number] & { priceRecords: { confidenceScore: number }[] };
+  priceConfidence: number;
+}) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link href={`/lotteries/${listing.id}`} className="font-semibold leading-6 hover:text-primary">{listing.productName}</Link>
+          <div className="mt-1 text-xs text-muted-foreground">{listing.storeName}</div>
+        </div>
+        <PriorityBadge label={listing.applicationPriorityLabel} score={listing.applicationPriorityScore} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+        <MobileMetric label="締切" value={dateOnly(listing.applicationEndAt)} />
+        <MobileMetric label="応募状況" value={<Badge tone={tone(listing.applicationStatus)}>{applicationStatusLabels[listing.applicationStatus]}</Badge>} />
+        <MobileMetric label="定価" value={yen(listing.retailPrice)} />
+        <MobileMetric label="最高買取" value={yen(listing.bestBuyPrice)} strong />
+        <MobileMetric label="想定利益" value={yen(listing.estimatedProfit)} strong tone="success" />
+        <MobileMetric label="ROI / 倍率" value={`${percent(listing.roi)} / ${multiple(listing.priceMultiplier)}`} strong />
+        <MobileMetric label="実利益" value={yen(listing.actualProfit)} strong />
+        <MobileMetric label="実ROI" value={percent(listing.actualRoi)} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Badge tone={tone(listing.priceStatus)}>{priceStatusLabels[listing.priceStatus]}</Badge>
+        {listing.priceStatus === "found" ? <Badge tone={priceConfidence >= 0.7 ? "success" : "warning"}>{priceConfidenceLabel(priceConfidence, listing.priceStatus)}</Badge> : null}
+        <span className="text-xs text-muted-foreground">信頼度 {priceConfidence.toFixed(2)}</span>
+        {listing.userVerdict ? <Badge tone={tone(listing.userVerdict)}>{userVerdictLabels[listing.userVerdict]}</Badge> : null}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link href={`/lotteries/${listing.id}`} className={secondaryButtonClass}>詳細</Link>
+        {listing.ignored ? (
+          <form action={unignoreLotteryListing}><input type="hidden" name="id" value={listing.id} /><button className={secondaryButtonClass} type="submit">無視解除</button></form>
+        ) : (
+          <form action={ignoreLotteryListing} className="flex min-w-0 flex-1 gap-2">
+            <input type="hidden" name="id" value={listing.id} />
+            <input className="h-10 min-w-0 flex-1 rounded-md border border-border px-2 text-xs" name="ignoredReason" placeholder="無視理由" />
+            <button className={dangerButtonClass} type="submit">無視</button>
+          </form>
+        )}
+      </div>
+
+      <div className="mt-3">
+        <VerdictButtons listingId={listing.id} />
+      </div>
+    </Card>
+  );
+}
+
+function MobileMetric({
+  label,
+  value,
+  strong,
+  tone
+}: {
+  label: string;
+  value: React.ReactNode;
+  strong?: boolean;
+  tone?: "success";
+}) {
+  return (
+    <div className="rounded-md bg-muted/45 p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`mt-1 break-words tabular-nums ${strong ? "font-semibold" : ""} ${tone === "success" ? "text-emerald-700" : ""}`}>{value}</div>
+    </div>
+  );
+}
+
+function PriorityBadge({ label, score }: { label: string; score: number }) {
+  const toneName = priorityTone(label) as "success" | "primary" | "warning" | "neutral" | "danger";
+  const emphasis = label === "S" || label === "A" ? "text-sm" : "";
+  return <Badge tone={toneName}><span className={emphasis}>{label}: {priorityLabelText(label)} ({score})</span></Badge>;
 }
 
 function VerdictButtons({ listingId }: { listingId: string }) {
@@ -229,12 +317,12 @@ function VerdictButtons({ listingId }: { listingId: string }) {
         <form key={value} action={setListingVerdict}>
           <input type="hidden" name="id" value={listingId} />
           <input type="hidden" name="userVerdict" value={value} />
-          <button className="rounded border border-border px-2 py-1 text-xs hover:bg-muted" type="submit">{label}</button>
+          <button className={smallButtonClass} type="submit">{label}</button>
         </form>
       ))}
       <form action={clearListingVerdict}>
         <input type="hidden" name="id" value={listingId} />
-        <button className="rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted" type="submit">クリア</button>
+        <button className={smallButtonClass} type="submit">クリア</button>
       </form>
     </div>
   );

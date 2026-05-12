@@ -165,15 +165,50 @@ export default async function DashboardPage() {
         </div>
       </PageHeader>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-5">
-        <StatCard label="未読通知" value={`${relativeCount(unreadNotificationCount)}件`} />
-        <StatCard label="重要通知" value={`${relativeCount(importantUnreadCount)}件`} />
+      <div className="mb-6 grid gap-4 xl:grid-cols-[1.1fr_1fr_1.2fr]">
+        <Card className="p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">最新通知</h2>
+              <p className="mt-1 text-xs text-muted-foreground">未読 {relativeCount(unreadNotificationCount)}件 / 重要 {relativeCount(importantUnreadCount)}件</p>
+            </div>
+            <Link href="/notifications" className={secondaryButtonClass}>一覧</Link>
+          </div>
+          <NotificationList notifications={latestNotifications} compact />
+        </Card>
+
+        <Card className="p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">今日締切</h2>
+              <p className="mt-1 text-xs text-muted-foreground">当日締切の未無視候補</p>
+            </div>
+            <Link href="/lotteries?sort=deadline" className={secondaryButtonClass}>一覧</Link>
+          </div>
+          <DeadlineList listings={todayDeadlineListings} />
+        </Card>
+
+        <Card className="p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">応募候補</h2>
+              <p className="mt-1 text-xs text-muted-foreground">高信頼価格かつ想定利益がプラス</p>
+            </div>
+            <Link href="/lotteries?sort=priority" className={secondaryButtonClass}>一覧</Link>
+          </div>
+          <CandidateTable listings={applicationCandidates} />
+        </Card>
+      </div>
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <StatCard label="未読通知" value={`${relativeCount(unreadNotificationCount)}件`} tone={unreadNotificationCount > 0 ? "warning" : "neutral"} />
+        <StatCard label="重要通知" value={`${relativeCount(importantUnreadCount)}件`} tone={importantUnreadCount > 0 ? "danger" : "neutral"} />
         <StatCard label="応募済み件数" value={`${relativeCount(appliedCount)}件`} />
         <StatCard label="当選件数" value={`${relativeCount(wonCount)}件`} />
         <StatCard label="売却済み件数" value={`${relativeCount(soldCount)}件`} />
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-5">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="落選件数" value={`${relativeCount(lostCount)}件`} />
         <StatCard label="購入済み件数" value={`${relativeCount(purchasedCount)}件`} />
         <StatCard label="今月の確定利益" value={yen(thisMonthProfit)} />
@@ -181,7 +216,7 @@ export default async function DashboardPage() {
         <StatCard label="当選率" value={percent(winRate)} note="当選・購入・売却 / 応募済み以上" />
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-5">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="平均実ROI" value={percent(avgActualRoi)} />
         <StatCard label="未売却の商品数" value={`${relativeCount(purchasedUnsoldCount)}件`} />
         <StatCard label="応募候補" value={`${relativeCount(applicationCandidates.length)}件`} note="高信頼価格・利益プラス" />
@@ -223,22 +258,6 @@ export default async function DashboardPage() {
         )}
       </Card>
 
-      <Card className="mb-6 p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold">最新通知</h2>
-          <Link href="/notifications" className={secondaryButtonClass}>通知一覧</Link>
-        </div>
-        <NotificationList notifications={latestNotifications} />
-      </Card>
-
-      <Card className="mb-6 p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold">応募候補</h2>
-          <Link href="/lotteries?sort=priority" className={secondaryButtonClass}>一覧</Link>
-        </div>
-        <CandidateTable listings={applicationCandidates} />
-      </Card>
-
       <div className="grid gap-6 xl:grid-cols-2">
         <ListingPanel title="利益額が高い抽選" listings={highProfitListings} href="/lotteries?sort=profit" />
         <ListingPanel title="ROIが高い抽選" listings={highRoiListings} href="/lotteries?sort=roi" />
@@ -249,13 +268,13 @@ export default async function DashboardPage() {
   );
 }
 
-function NotificationList({ notifications }: { notifications: NotificationWithListing[] }) {
+function NotificationList({ notifications, compact = false }: { notifications: NotificationWithListing[]; compact?: boolean }) {
   if (notifications.length === 0) return <EmptyState message="未読通知はありません。" />;
 
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className={`grid gap-3 ${compact ? "" : "md:grid-cols-2"}`}>
       {notifications.map((notification) => (
-        <Link key={notification.id} href={`/lotteries/${notification.lotteryListingId}`} className="rounded-md border border-border p-3 hover:bg-muted">
+        <Link key={notification.id} href={`/lotteries/${notification.lotteryListingId}`} className="rounded-md border border-border bg-white p-3 hover:bg-muted">
           <div className="mb-2 flex items-center gap-2">
             <Badge tone={notification.severity === "important" ? "danger" : notification.severity === "warning" ? "warning" : "neutral"}>
               {notificationSeverityLabels[notification.severity] ?? notification.severity}
@@ -271,41 +290,65 @@ function NotificationList({ notifications }: { notifications: NotificationWithLi
   );
 }
 
+function DeadlineList({ listings }: { listings: ListingWithPrice[] }) {
+  if (listings.length === 0) return <EmptyState message="今日締切の抽選はありません。" />;
+  return (
+    <div className="grid gap-3">
+      {listings.slice(0, 5).map((listing) => (
+        <Link key={listing.id} href={`/lotteries/${listing.id}`} className="rounded-md border border-amber-200 bg-amber-50/50 p-3 hover:bg-amber-50">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate font-semibold">{listing.productName}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{listing.storeName}</div>
+            </div>
+            <Badge tone="warning">{dateOnly(listing.applicationEndAt)}</Badge>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span>定価 {yen(listing.retailPrice)}</span>
+            <span>利益 {yen(listing.estimatedProfit)}</span>
+            <span>ROI {percent(listing.roi)}</span>
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 function CandidateTable({ listings }: { listings: ListingWithPrice[] }) {
   if (listings.length === 0) return <EmptyState message="応募候補はありません。価格取得や定価入力を確認してください。" />;
   return (
-    <table className="w-full text-sm">
-      <thead className="bg-muted text-left text-xs text-muted-foreground">
-        <tr>
-          <th className="px-4 py-3">商品</th>
-          <th className="px-4 py-3">店舗</th>
-          <th className="px-4 py-3">締切</th>
-          <th className="px-4 py-3 text-right">定価</th>
-          <th className="px-4 py-3 text-right">最高買取</th>
-          <th className="px-4 py-3 text-right">想定利益</th>
-          <th className="px-4 py-3 text-right">ROI/倍率</th>
-          <th className="px-4 py-3">応募状況</th>
-          <th className="px-4 py-3">優先度</th>
-          <th className="px-4 py-3">URL</th>
-        </tr>
-      </thead>
-      <tbody>
-        {listings.map((listing) => (
-          <tr key={listing.id} className="border-t border-border">
-            <td className="max-w-sm px-4 py-3 font-medium"><Link href={`/lotteries/${listing.id}`} className="hover:text-primary">{listing.productName}</Link></td>
-            <td className="px-4 py-3">{listing.storeName}</td>
-            <td className="px-4 py-3">{dateOnly(listing.applicationEndAt)}</td>
-            <td className="px-4 py-3 text-right tabular-nums">{yen(listing.retailPrice)}</td>
-            <td className="px-4 py-3 text-right tabular-nums">{yen(listing.bestBuyPrice)}</td>
-            <td className="px-4 py-3 text-right font-semibold tabular-nums">{yen(listing.estimatedProfit)}</td>
-            <td className="px-4 py-3 text-right tabular-nums">{percent(listing.roi)} / {multiple(listing.priceMultiplier)}</td>
-            <td className="px-4 py-3"><Badge>{applicationStatusLabels[listing.applicationStatus]}</Badge></td>
-            <td className="px-4 py-3"><PriorityBadge label={listing.applicationPriorityLabel} score={listing.applicationPriorityScore} /></td>
-            <td className="px-4 py-3"><a className="text-primary" href={listing.lotteryUrl} target="_blank">元ページ</a></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="grid gap-3">
+      {listings.slice(0, 5).map((listing) => (
+        <Link key={listing.id} href={`/lotteries/${listing.id}`} className="rounded-md border border-border bg-white p-3 hover:bg-muted">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="line-clamp-2 font-semibold leading-6">{listing.productName}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{listing.storeName} / 締切 {dateOnly(listing.applicationEndAt)}</div>
+            </div>
+            <PriorityBadge label={listing.applicationPriorityLabel} score={listing.applicationPriorityScore} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <MetricMini label="定価" value={yen(listing.retailPrice)} />
+            <MetricMini label="最高買取" value={yen(listing.bestBuyPrice)} strong />
+            <MetricMini label="想定利益" value={yen(listing.estimatedProfit)} strong tone="success" />
+            <MetricMini label="ROI / 倍率" value={`${percent(listing.roi)} / ${multiple(listing.priceMultiplier)}`} strong />
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Badge>{applicationStatusLabels[listing.applicationStatus]}</Badge>
+            <span className="text-xs text-primary">元ページを開く</span>
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function MetricMini({ label, value, strong, tone }: { label: string; value: React.ReactNode; strong?: boolean; tone?: "success" }) {
+  return (
+    <div className="rounded bg-muted/50 p-2">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`mt-1 tabular-nums ${strong ? "font-semibold" : ""} ${tone === "success" ? "text-emerald-700" : ""}`}>{value}</div>
+    </div>
   );
 }
 
@@ -319,7 +362,21 @@ function ListingPanel({ title, listings, href }: { title: string; listings: List
       {listings.length === 0 ? (
         <EmptyState message="表示できる情報がありません。" />
       ) : (
-        <table className="w-full text-sm">
+        <>
+        <div className="grid gap-3 md:hidden">
+          {listings.map((listing) => (
+            <Link key={listing.id} href={`/lotteries/${listing.id}`} className="rounded-md border border-border p-3 hover:bg-muted">
+              <div className="font-semibold leading-6">{listing.productName}</div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                <MetricMini label="最高買取" value={yen(listing.bestBuyPrice)} strong />
+                <MetricMini label="利益" value={yen(listing.estimatedProfit)} strong tone="success" />
+                <MetricMini label="ROI" value={percent(listing.roi)} />
+                <MetricMini label="優先度" value={<PriorityBadge label={listing.applicationPriorityLabel} score={listing.applicationPriorityScore} />} />
+              </div>
+            </Link>
+          ))}
+        </div>
+        <table className="hidden w-full text-sm md:table">
           <thead className="text-left text-xs text-muted-foreground">
             <tr><th className="py-2">商品</th><th className="py-2">価格</th><th className="py-2">優先度</th></tr>
           </thead>
@@ -333,6 +390,7 @@ function ListingPanel({ title, listings, href }: { title: string; listings: List
             ))}
           </tbody>
         </table>
+        </>
       )}
     </Card>
   );

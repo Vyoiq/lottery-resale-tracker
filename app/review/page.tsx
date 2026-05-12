@@ -3,7 +3,7 @@ import { clearListingVerdict, setListingVerdict } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
 import { dateOnly, multiple, percent, userVerdictLabels, yen } from "@/lib/format";
-import { Badge, Card, EmptyState, PageHeader, secondaryButtonClass } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader, secondaryButtonClass, smallButtonClass } from "@/components/ui";
 
 type ReviewListing = {
   id: string;
@@ -119,7 +119,13 @@ function ReviewSection({ title, description, listings }: { title: string; descri
       {listings.length === 0 ? (
         <div className="p-4"><EmptyState message="該当する候補はありません。" /></div>
       ) : (
-        <table className="w-full text-sm">
+        <>
+        <div className="grid gap-3 p-4 md:hidden">
+          {listings.map((listing) => (
+            <ReviewCard key={listing.id} listing={listing} />
+          ))}
+        </div>
+        <table className="hidden w-full text-sm md:table">
           <thead className="bg-muted text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-3">商品</th>
@@ -166,12 +172,12 @@ function ReviewSection({ title, description, listings }: { title: string; descri
                       <form key={value} action={setListingVerdict}>
                         <input type="hidden" name="id" value={listing.id} />
                         <input type="hidden" name="userVerdict" value={value} />
-                        <button className="rounded border border-border px-2 py-1 text-xs hover:bg-muted" type="submit">{label}</button>
+                        <button className={smallButtonClass} type="submit">{label}</button>
                       </form>
                     ))}
                     <form action={clearListingVerdict}>
                       <input type="hidden" name="id" value={listing.id} />
-                      <button className="rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted" type="submit">クリア</button>
+                      <button className={smallButtonClass} type="submit">クリア</button>
                     </form>
                   </div>
                 </td>
@@ -179,8 +185,70 @@ function ReviewSection({ title, description, listings }: { title: string; descri
             ))}
           </tbody>
         </table>
+        </>
       )}
     </Card>
+  );
+}
+
+function ReviewCard({ listing }: { listing: ReviewListing }) {
+  return (
+    <div className="rounded-md border border-border bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link href={`/lotteries/${listing.id}`} className="font-semibold leading-6 hover:text-primary">{listing.productName}</Link>
+          <div className="mt-1 text-xs text-muted-foreground">{listing.storeName} / 締切 {dateOnly(listing.applicationEndAt)}</div>
+        </div>
+        <Badge tone={priorityTone(listing.applicationPriorityLabel) as "success" | "primary" | "warning" | "neutral" | "danger"}>
+          {listing.applicationPriorityLabel}: {priorityLabelText(listing.applicationPriorityLabel)}
+        </Badge>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+        <Metric label="買取価格" value={yen(listing.bestBuyPrice)} strong />
+        <Metric label="想定利益" value={yen(listing.estimatedProfit)} strong tone="success" />
+        <Metric label="ROI / 倍率" value={`${percent(listing.roi)} / ${multiple(listing.priceMultiplier)}`} />
+        <Metric label="信頼度" value={`抽選 ${listing.confidenceScore.toFixed(2)} / 価格 ${topPriceConfidence(listing).toFixed(2)}`} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {listing.userVerdict ? <Badge>{userVerdictLabels[listing.userVerdict]}</Badge> : <span className="text-xs text-muted-foreground">未判定</span>}
+      </div>
+      <VerdictButtons listingId={listing.id} />
+    </div>
+  );
+}
+
+function Metric({ label, value, strong, tone }: { label: string; value: React.ReactNode; strong?: boolean; tone?: "success" }) {
+  return (
+    <div className="rounded bg-muted/50 p-2">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`mt-1 break-words tabular-nums ${strong ? "font-semibold" : ""} ${tone === "success" ? "text-emerald-700" : ""}`}>{value}</div>
+    </div>
+  );
+}
+
+function VerdictButtons({ listingId }: { listingId: string }) {
+  const buttons = [
+    ["good", "良い"],
+    ["wrong_price", "価格違い"],
+    ["wrong_product", "商品違い"],
+    ["low_interest", "興味なし"],
+    ["expired", "期限切れ"],
+    ["duplicate", "重複"]
+  ];
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {buttons.map(([value, label]) => (
+        <form key={value} action={setListingVerdict}>
+          <input type="hidden" name="id" value={listingId} />
+          <input type="hidden" name="userVerdict" value={value} />
+          <button className={smallButtonClass} type="submit">{label}</button>
+        </form>
+      ))}
+      <form action={clearListingVerdict}>
+        <input type="hidden" name="id" value={listingId} />
+        <button className={smallButtonClass} type="submit">クリア</button>
+      </form>
+    </div>
   );
 }
 

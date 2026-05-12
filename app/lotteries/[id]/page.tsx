@@ -16,7 +16,7 @@ import { userVerdicts } from "@/lib/domain";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
 import { applicationStatusLabels, dateOnly, dateTime, listingStatusLabels, multiple, percent, priceStatusLabels, userVerdictLabels, yen } from "@/lib/format";
-import { Badge, buttonClass, Card, EmptyState, Field, inputClass, PageHeader, secondaryButtonClass, textareaClass } from "@/components/ui";
+import { Badge, buttonClass, Card, dangerButtonClass, EmptyState, Field, inputClass, PageHeader, secondaryButtonClass, textareaClass } from "@/components/ui";
 
 function tone(status: string) {
   if (["active", "found", "good", "won", "purchased", "sold"].includes(status)) return "success";
@@ -40,9 +40,31 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
         <Link href="/lotteries" className={secondaryButtonClass}>一覧へ戻る</Link>
       </PageHeader>
 
+      <Card className="mb-6 border-teal-200 bg-teal-50/50 p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap gap-2">
+              <Badge tone={priorityTone(listing.applicationPriorityLabel) as "success" | "primary" | "warning" | "neutral" | "danger"}>
+                {listing.applicationPriorityLabel}: {priorityLabelText(listing.applicationPriorityLabel)} ({listing.applicationPriorityScore})
+              </Badge>
+              <Badge tone={tone(listing.applicationStatus)}>{applicationStatusLabels[listing.applicationStatus]}</Badge>
+              <Badge tone={tone(listing.priceStatus)}>{priceStatusLabels[listing.priceStatus]}</Badge>
+            </div>
+            <h2 className="text-lg font-semibold leading-7">{listing.productName}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{listing.storeName} / 締切 {dateOnly(listing.applicationEndAt)}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[520px]">
+            <SummaryMetric label="定価" value={yen(listing.retailPrice)} />
+            <SummaryMetric label="最高買取" value={yen(listing.bestBuyPrice)} strong />
+            <SummaryMetric label="想定利益" value={yen(listing.estimatedProfit)} strong tone="success" />
+            <SummaryMetric label="ROI" value={percent(listing.roi)} strong />
+          </div>
+        </div>
+      </Card>
+
       <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_360px]">
         <Card className="p-4">
-          <h2 className="mb-3 font-semibold">{listing.productName}</h2>
+          <h2 className="mb-3 font-semibold">抽選情報と判定</h2>
           <dl className="grid gap-3 text-sm md:grid-cols-2">
             <FieldRow label="店舗" value={listing.storeName} />
             <div><dt className="text-muted-foreground">抽選ステータス</dt><dd><Badge tone={tone(listing.status)}>{listingStatusLabels[listing.status]}</Badge></dd></div>
@@ -67,7 +89,7 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
               <dt className="text-muted-foreground">ユーザー判定</dt>
               <dd>{listing.userVerdict ? <Badge tone={tone(listing.userVerdict)}>{userVerdictLabels[listing.userVerdict]}</Badge> : "未判定"}</dd>
             </div>
-            <div className="md:col-span-2"><dt className="text-muted-foreground">URL</dt><dd><a className="text-primary" href={listing.lotteryUrl} target="_blank">{listing.lotteryUrl}</a></dd></div>
+            <div className="md:col-span-2"><dt className="text-muted-foreground">URL</dt><dd><a className="break-all text-primary" href={listing.lotteryUrl} target="_blank">{listing.lotteryUrl}</a></dd></div>
             <FieldRow className="md:col-span-2" label="検出理由" value={`${listing.confidenceReason ?? "-"} / ${listing.matchedKeywords ?? "-"}`} />
             <FieldRow className="md:col-span-2" label="説明" value={listing.description ?? "-"} />
           </dl>
@@ -84,14 +106,14 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
               <form action={ignoreLotteryListing} className="flex gap-2">
                 <input type="hidden" name="id" value={listing.id} />
                 <input className={inputClass} name="ignoredReason" placeholder="無視理由" />
-                <button className="h-10 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50" type="submit">無視</button>
+                <button className={dangerButtonClass} type="submit">無視</button>
               </form>
             )}
           </div>
         </Card>
 
         <Card className="p-4">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-semibold">利益計算</h2>
             <form action={runPriceCheckForListingAction}>
               <input type="hidden" name="id" value={listing.id} />
@@ -172,7 +194,25 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
         {listing.priceRecords.length === 0 ? (
           <div className="p-4"><EmptyState message="価格履歴はありません。" /></div>
         ) : (
-          <table className="w-full text-sm">
+          <>
+          <div className="grid gap-3 p-4 md:hidden">
+            {listing.priceRecords.map((record) => (
+              <div key={record.id} className="rounded-md border border-border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-semibold">{record.shopName}</div>
+                  <div className="text-right font-semibold tabular-nums text-emerald-700">{yen(record.price)}</div>
+                </div>
+                <div className="mt-2 text-sm">{record.matchedTitle}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{record.rawText?.slice(0, 120)}</div>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span>信頼度 {record.confidenceScore.toFixed(2)}</span>
+                  <span>{dateTime(record.extractedAt)}</span>
+                  <a className="text-primary" href={record.sourceUrl} target="_blank">開く</a>
+                </div>
+              </div>
+            ))}
+          </div>
+          <table className="hidden w-full text-sm md:table">
             <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">買取店</th>
@@ -196,9 +236,19 @@ export default async function LotteryDetailPage({ params }: { params: { id: stri
               ))}
             </tbody>
           </table>
+          </>
         )}
       </Card>
     </>
+  );
+}
+
+function SummaryMetric({ label, value, strong, tone }: { label: string; value: React.ReactNode; strong?: boolean; tone?: "success" }) {
+  return (
+    <div className="rounded-md border border-border bg-white p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`mt-1 break-words text-lg tabular-nums ${strong ? "font-semibold" : ""} ${tone === "success" ? "text-emerald-700" : ""}`}>{value}</div>
+    </div>
   );
 }
 
@@ -218,18 +268,18 @@ function ApplicationButtons({ listingId }: { listingId: string }) {
     ["skipped", "スキップした"]
   ];
   return (
-    <Card className="bg-muted/20 p-3">
+    <div className="rounded-md border border-border bg-muted/20 p-3">
       <div className="mb-2 text-sm font-semibold">応募状況</div>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         {actions.map(([value, label]) => (
           <form key={value} action={setApplicationMilestone}>
             <input type="hidden" name="id" value={listingId} />
             <input type="hidden" name="applicationStatus" value={value} />
-            <button className={secondaryButtonClass} type="submit">{label}</button>
+            <button className={`${secondaryButtonClass} w-full`} type="submit">{label}</button>
           </form>
         ))}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -237,13 +287,13 @@ function VerdictForm({ listingId }: { listingId: string }) {
   const buttons = userVerdicts.filter((item) => item !== "other");
 
   return (
-    <Card className="bg-muted/20 p-3">
+    <div className="rounded-md border border-border bg-muted/20 p-3">
       <div className="mb-2 text-sm font-semibold">判定フィードバック</div>
       <form action={setListingVerdict} className="grid gap-2">
         <input type="hidden" name="id" value={listingId} />
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           {buttons.map((verdict) => (
-            <button key={verdict} className={secondaryButtonClass} name="userVerdict" value={verdict} type="submit">
+            <button key={verdict} className={`${secondaryButtonClass} w-full`} name="userVerdict" value={verdict} type="submit">
               {userVerdictLabels[verdict]}
             </button>
           ))}
@@ -260,6 +310,6 @@ function VerdictForm({ listingId }: { listingId: string }) {
         <input type="hidden" name="id" value={listingId} />
         <button className="text-xs font-medium text-muted-foreground hover:text-foreground" type="submit">判定をクリア</button>
       </form>
-    </Card>
+    </div>
   );
 }
