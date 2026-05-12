@@ -6,6 +6,7 @@ import { runCollectors } from "@/services/collectors/base";
 import { collectPricesForListing, runPriceCollectors } from "@/services/priceCollectors/base";
 import { refreshListingBestPrice } from "@/services/priceCollectors/savePriceRecords";
 import { generateNotifications } from "@/services/notifications/generateNotifications";
+import { createBackup, deleteBackup } from "@/services/backups/backupService";
 import { prisma } from "@/lib/prisma";
 import { recalculateAllListingPriorities, recalculateListingPriority } from "@/lib/priorityService";
 import { calculateActualSaleMetrics } from "@/lib/salesCalculations";
@@ -369,6 +370,19 @@ export async function markAllNotificationsRead() {
   });
   revalidatePath("/");
   revalidatePath("/notifications");
+}
+
+export async function createBackupAction(formData?: FormData) {
+  const memo = formData ? optionalStr(formData, "memo") : null;
+  await createBackup({ memo });
+  revalidatePath("/");
+  revalidatePath("/backups");
+}
+
+export async function deleteBackupAction(formData: FormData) {
+  await deleteBackup(str(formData, "id"));
+  revalidatePath("/");
+  revalidatePath("/backups");
 }
 
 function revalidateListingViews(id: string) {

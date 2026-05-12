@@ -254,3 +254,15 @@ model ExclusionKeyword {
 
   @@index([enabled])
 }
+
+model BackupRecord {
+  id        String   @id @default(cuid())
+  filename  String
+  path      String
+  sizeBytes Int
+  createdAt DateTime @default(now())
+  memo      String?
+
+  @@index([createdAt])
+  @@index([filename])
+}

@@ -6,7 +6,7 @@
 
 ## 現在の主な機能
 
-v0.1.0 時点では、次の機能を実装しています。
+v0.2.0 以降では、次の機能を実装しています。
 
 - 公開ページまたはRSSからの抽選販売情報収集
 - 監視ソース管理とプリセット追加
@@ -23,6 +23,8 @@ v0.1.0 時点では、次の機能を実装しています。
 - 応募、当選、落選、購入、売却、スキップの手動記録
 - 実利益、実利益率、実ROIの自動計算
 - アプリ内通知の生成、未読管理、重要通知の確認
+- SQLite DB の手動バックアップ、一覧、ダウンロード、削除
+- JSONエクスポート、抽選一覧CSV、価格履歴CSV、応募・売却履歴CSV
 - ダッシュボードでの応募候補、価格未取得、確定利益、当選率の確認
 - 分析ページでの月別利益、商品別利益、店舗別当選率の確認
 - 売却履歴CSVエクスポート
@@ -41,7 +43,7 @@ v0.1.0 時点では、次の機能を実装しています。
 - 送料・手数料のデフォルト設定
 - PostgreSQL 移行を見据えた設定整理
 - Vercel デプロイ手順と本番運用設定の追加
-- CSVインポート、バックアップ、リストア機能
+- CSVインポート、バックアップ復元機能
 
 ## 起動方法
 
@@ -124,6 +126,51 @@ https://example.com/search?q={keyword}
 
 実利益率と実ROIは小数点1桁で表示します。
 
+## バックアップ
+
+`/backups` またはダッシュボードの「バックアップ作成」から、現在の SQLite DB を `backups/` にコピーできます。
+
+バックアップファイル名には日時が入ります。
+
+```txt
+backups/backup-YYYY-MM-DD-HHmmss.db
+```
+
+バックアップ一覧では、ファイル名、作成日時、サイズ、メモを確認できます。各バックアップは画面からダウンロードまたは削除できます。
+
+API:
+- `POST /api/backups/create`
+- `GET /api/backups`
+- `GET /api/backups/[id]/download`
+- `DELETE /api/backups/[id]`
+
+復元機能はまだ実装していません。
+
+## JSONエクスポート
+
+主要データを JSON で出力できます。`BackupRecord` は JSON エクスポート対象外です。
+
+```txt
+GET /api/export/json
+```
+
+出力対象:
+- `WatchSource`
+- `LotteryListing`
+- `PriceSource`
+- `PriceRecord`
+- `Notification`
+
+ファイル名は `lottery-resale-tracker-export-YYYYMMDD-HHmmss.json` です。
+
+## CSVエクスポート
+
+以下のCSVを出力できます。
+
+- 抽選一覧CSV: `GET /api/export/lotteries`
+- 価格履歴CSV: `GET /api/export/prices`
+- 応募・売却履歴CSV: `GET /api/export/sales`
+
 ## 売却履歴CSV
 
 `/analytics` の「売却履歴CSV」からCSVを出力できます。
@@ -144,7 +191,7 @@ https://example.com/search?q={keyword}
 - 実ROI
 - メモ
 
-直接開く場合は `/api/export/sales` です。
+直接開く場合は `/api/export/sales` です。現在は応募・購入・売却履歴をまとめて出力します。
 
 ## アプリ内通知
 
@@ -271,6 +318,7 @@ ROI = 差益 / 定価 * 100
 
 - `/` ダッシュボード
 - `/notifications` アプリ内通知、既読管理
+- `/backups` バックアップ作成、一覧、ダウンロード、削除、JSON/CSVエクスポート
 - `/lotteries` 抽選一覧、利益表示、応募状況、実利益、判定フィードバック、無視操作
 - `/lotteries/[id]` 抽選詳細、応募・購入・売却記録、価格チェック、価格履歴、手入力補正
 - `/analytics` 分析、売却履歴CSV
@@ -295,3 +343,15 @@ ROI = 差益 / 定価 * 100
 - 規約違反になりそうな高頻度アクセス
 
 collector は公開ページの取得、抽選情報の検出、買取価格候補の検出だけを行います。応募・購入・売却はユーザーが手動で行い、このアプリには結果だけを記録します。
+
+## Git管理しないもの
+
+以下はローカル環境や個人データを含むため、Git管理しません。
+
+- `.env`
+- `node_modules`
+- `.next`
+- `prisma/dev.db`
+- `backups/`
+
+バックアップファイル自体もリポジトリに含めないでください。

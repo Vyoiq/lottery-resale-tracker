@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { generateNotificationsAction, runCollectorsAction, runPriceCollectorsAction } from "@/lib/actions";
+import { createBackupAction, generateNotificationsAction, runCollectorsAction, runPriceCollectorsAction } from "@/lib/actions";
 import { endOfDay, startOfDay, subDays } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
@@ -48,7 +48,9 @@ export default async function DashboardPage() {
     newListings,
     unreadNotificationCount,
     importantUnreadCount,
-    latestNotifications
+    latestNotifications,
+    latestBackup,
+    backupCount
   ] = await Promise.all([
     prisma.lotteryListing.findMany({
       where: {
@@ -102,7 +104,9 @@ export default async function DashboardPage() {
       include: { lotteryListing: { select: { id: true, productName: true, storeName: true } } },
       orderBy: [{ severity: "asc" }, { createdAt: "desc" }],
       take: 6
-    })
+    }),
+    prisma.backupRecord.findFirst({ orderBy: { createdAt: "desc" } }),
+    prisma.backupRecord.count()
   ]);
 
   const statusCounts = Object.fromEntries(statusGroups.map((item) => [item.applicationStatus, item._count]));
@@ -132,6 +136,10 @@ export default async function DashboardPage() {
           <form action={generateNotificationsAction}>
             <button className={secondaryButtonClass} type="submit">通知を更新</button>
           </form>
+          <form action={createBackupAction}>
+            <button className={secondaryButtonClass} type="submit">バックアップ作成</button>
+          </form>
+          <Link href="/backups" className={secondaryButtonClass}>バックアップ一覧へ</Link>
         </div>
       </PageHeader>
 
@@ -157,6 +165,11 @@ export default async function DashboardPage() {
         <StatCard label="応募候補" value={`${relativeCount(applicationCandidates.length)}件`} note="高信頼価格・利益プラス" />
         <StatCard label="今日締切の抽選" value={`${relativeCount(todayDeadlineListings.length)}件`} />
         <StatCard label="有効な監視ソース" value={`${relativeCount(sourcesCount)}件`} note={latestRun ? `最終収集: ${dateTime(latestRun.finishedAt ?? latestRun.startedAt)}` : "未実行"} />
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-2">
+        <StatCard label="最終バックアップ日時" value={latestBackup ? dateTime(latestBackup.createdAt) : "-"} note={latestBackup?.filename ?? "未作成"} />
+        <StatCard label="バックアップ件数" value={`${relativeCount(backupCount)}件`} note="backups/ に保存" />
       </div>
 
       <Card className="mb-6 p-4">
