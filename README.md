@@ -116,6 +116,7 @@ npm run collect -- --dry-run
 npm run collect:prices
 npm run collect:prices -- --dry-run
 npm run notifications
+npm run discover:sources
 npm run backup
 npm run operate
 npx prisma migrate dev
@@ -180,6 +181,43 @@ https://example.com/search?q={keyword}
 ```
 
 `/price-checker` ではDB保存なしで、生成された検索キーワード、検索URL、採用候補、除外候補、confidenceScore を確認できます。
+
+## 価格ソースプリセットと有効化
+
+`/price-sources/presets` の「追加済み」は、プリセットが `PriceSource` にコピー済みという意味です。価格取得に使われる状態、つまり `enabled: true` とは別です。
+
+価格ソースを実際に使うには、`/price-sources` でURLを確認してから有効化してください。
+
+注意:
+- プリセット追加 = 有効化ではありません。
+- 有効化は `/price-sources` で行います。
+- `example.com` を含むURLはプレースホルダーです。
+- プレースホルダーURLは実在する公開検索URLへ差し替えてから使ってください。
+- `example.com` の価格ソースは安全のため有効化できないようにしています。
+
+## ソース自動発見
+
+`/source-discovery` では、公開RSSや既存の公開ページから、抽選情報ページや買取価格検索ページの候補URLを探せます。
+
+できること:
+- `DiscoveryQuery` に検索キーワードを登録する
+- `npm run discover:sources` または画面の「ソース候補を探す」で候補を取得する
+- 発見候補を WatchSource または PriceSource に追加する
+- 不要な候補を無視する
+
+安全仕様:
+- Google検索結果ページの直接スクレイピングは行いません。
+- 公開RSS、許可された検索API、公開ページからのリンク抽出を対象にします。
+- `example.com` を含むURLはプレースホルダーとして除外します。
+- WatchSource / PriceSource に追加しても、必ず `enabled: false` です。
+- 実際に巡回する前に `/sources` または `/price-sources` でURL、利用規約、ログイン不要で閲覧できること、アクセス頻度を確認してください。
+- 自動応募、自動購入、ログイン自動化、CAPTCHA回避は実装していません。
+
+半自動モードは `/settings/operations` の「ソース自動発見モード」で選べます。
+
+- 候補発見のみ
+- WatchSource / PriceSource に自動追加するが `enabled: false`
+- 高信頼候補だけ自動追加するが `enabled: false`
 
 ## 応募状況の記録
 
@@ -529,6 +567,8 @@ ROI = 差益 / 定価 * 100
 ## 画面
 
 - `/` ダッシュボード
+- `/simple` シンプルモード。応募判断に必要な商品名、店舗名、締切、定価、最高買取価格、想定利益、利益率、ROI、倍率、応募優先度、元ページURL、価格信頼度だけを1画面で確認
+- `/source-discovery` 公開RSSや公開ページから監視ソース候補・価格ソース候補を自動発見
 - `/notifications` アプリ内通知、既読管理
 - `/backups` バックアップ作成、一覧、ダウンロード、削除、JSON/CSVエクスポート
 - `/lotteries` 抽選一覧、利益表示、応募状況、実利益、判定フィードバック、無視操作
@@ -551,6 +591,9 @@ ROI = 差益 / 定価 * 100
 
 毎日確認する画面を中心に、PC、タブレット、スマホ幅で見やすい配置にしています。
 
+- `/simple` は日常利用向けのシンプルモードです。デフォルトでは受付中、利益あり、締切が近い、ROIが高い、価格信頼度が高い候補を優先して表示します。
+- シンプルモードでは、応募受付中のみ、利益ありのみ、S/Aランクのみ、価格取得済みのみ、無視したものを非表示、の最小限のフィルターだけを使います。
+- シンプルモードからは、元ページを開く、応募した、無視する、価格を再取得、詳細を見る、の操作だけを行えます。
 - ダッシュボード上部に、最新通知、今日締切、応募候補を優先表示します。
 - S/A/B/C/D の応募優先度は色付きバッジで表示し、候補の判断をしやすくしています。
 - 金額、想定利益、ROI、倍率はカード内で強調表示します。

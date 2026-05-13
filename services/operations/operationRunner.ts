@@ -6,9 +6,10 @@ import { createBackup, pruneBackups } from "@/services/backups/backupService";
 import { runCollectors } from "@/services/collectors/base";
 import { generateNotifications } from "@/services/notifications/generateNotifications";
 import { runPriceCollectors } from "@/services/priceCollectors/base";
+import { runSourceDiscovery } from "@/services/sourceDiscovery/discoveryRunner";
 import { operationFailureMessage } from "@/lib/errorMessages";
 
-export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "full_run"] as const;
+export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "full_run"] as const;
 export type OperationRunType = (typeof operationRunTypes)[number];
 
 export type OperationStepResult = {
@@ -106,6 +107,7 @@ export function operationTypeLabel(type: string) {
     price_collect: "価格取得",
     notifications: "通知生成",
     backup: "バックアップ",
+    source_discovery: "ソース自動発見",
     restore_backup: "バックアップ復元",
     full_run: "一括実行"
   }[type] ?? type;
@@ -137,6 +139,15 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
     return {
       success: true,
       message: `確認 ${result.checkedCount} 件、候補 ${result.candidateCount} 件、新規 ${result.createdCount} 件、更新 ${result.updatedCount} 件`
+    };
+  }
+
+  if (type === "source_discovery") {
+    const result = await runSourceDiscovery(client);
+    const details = result.errorMessage ? `\n\nエラー詳細:\n${result.errorMessage}` : "";
+    return {
+      success: result.errorCount === 0,
+      message: `検索キーワード ${result.queryCount} 件、発見 ${result.foundCount} 件、新規 ${result.newCount} 件、更新 ${result.updatedCount} 件、WatchSource自動追加 ${result.autoAddedWatchCount} 件、PriceSource自動追加 ${result.autoAddedPriceCount} 件、エラー ${result.errorCount} 件${details}`
     };
   }
 

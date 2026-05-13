@@ -55,6 +55,19 @@ export default async function OperationSettingsPage() {
             </Field>
           </div>
 
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="ソース自動発見モード">
+              <select className={inputClass} name="sourceDiscoveryMode" defaultValue={settings.sourceDiscoveryMode}>
+                <option value="candidates_only">候補発見のみ</option>
+                <option value="auto_add_disabled">WatchSource / PriceSource に自動追加（enabled: false）</option>
+                <option value="auto_add_high_confidence_disabled">高信頼候補だけ自動追加（enabled: false）</option>
+              </select>
+            </Field>
+            <Field label="高信頼自動追加の最低信頼度（0-1）">
+              <input className={inputClass} name="sourceDiscoveryAutoAddMinConfidence" type="number" min="0" max="1" step="0.05" defaultValue={settings.sourceDiscoveryAutoAddMinConfidence} />
+            </Field>
+          </div>
+
           <div>
             <button className={buttonClass} type="submit">設定を保存</button>
           </div>
@@ -68,6 +81,7 @@ export default async function OperationSettingsPage() {
           <TaskButton type="price_collect" label="価格取得" />
           <TaskButton type="notifications" label="通知生成" />
           <TaskButton type="backup" label="バックアップ作成" />
+          <TaskButton type="source_discovery" label="ソース自動発見" />
         </div>
       </Card>
 

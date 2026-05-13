@@ -10,7 +10,9 @@ export const operationSettingDefaults = {
   priceCollectIntervalMinutes: 720,
   backupRetentionCount: 10,
   notificationMinRoi: 100,
-  notificationMinProfit: 3000
+  notificationMinProfit: 3000,
+  sourceDiscoveryMode: "candidates_only",
+  sourceDiscoveryAutoAddMinConfidence: 0.75
 };
 
 export type OperationSettings = typeof operationSettingDefaults;
@@ -38,7 +40,14 @@ export async function getOperationSettings(client: PrismaClient = defaultPrisma)
     priceCollectIntervalMinutes: parseInteger(values.get("priceCollectIntervalMinutes"), operationSettingDefaults.priceCollectIntervalMinutes, 1),
     backupRetentionCount: parseInteger(values.get("backupRetentionCount"), operationSettingDefaults.backupRetentionCount, 1),
     notificationMinRoi: parseInteger(values.get("notificationMinRoi"), operationSettingDefaults.notificationMinRoi, 0),
-    notificationMinProfit: parseInteger(values.get("notificationMinProfit"), operationSettingDefaults.notificationMinProfit, 0)
+    notificationMinProfit: parseInteger(values.get("notificationMinProfit"), operationSettingDefaults.notificationMinProfit, 0),
+    sourceDiscoveryMode: parseSourceDiscoveryMode(values.get("sourceDiscoveryMode"), operationSettingDefaults.sourceDiscoveryMode),
+    sourceDiscoveryAutoAddMinConfidence: parseFloatSetting(
+      values.get("sourceDiscoveryAutoAddMinConfidence"),
+      operationSettingDefaults.sourceDiscoveryAutoAddMinConfidence,
+      0,
+      1
+    )
   };
 }
 
@@ -62,7 +71,14 @@ export function operationSettingsFromForm(formData: FormData): OperationSettings
     priceCollectIntervalMinutes: parseInteger(readFormValue(formData, "priceCollectIntervalMinutes"), operationSettingDefaults.priceCollectIntervalMinutes, 1),
     backupRetentionCount: parseInteger(readFormValue(formData, "backupRetentionCount"), operationSettingDefaults.backupRetentionCount, 1),
     notificationMinRoi: parseInteger(readFormValue(formData, "notificationMinRoi"), operationSettingDefaults.notificationMinRoi, 0),
-    notificationMinProfit: parseInteger(readFormValue(formData, "notificationMinProfit"), operationSettingDefaults.notificationMinProfit, 0)
+    notificationMinProfit: parseInteger(readFormValue(formData, "notificationMinProfit"), operationSettingDefaults.notificationMinProfit, 0),
+    sourceDiscoveryMode: parseSourceDiscoveryMode(readFormValue(formData, "sourceDiscoveryMode"), operationSettingDefaults.sourceDiscoveryMode),
+    sourceDiscoveryAutoAddMinConfidence: parseFloatSetting(
+      readFormValue(formData, "sourceDiscoveryAutoAddMinConfidence"),
+      operationSettingDefaults.sourceDiscoveryAutoAddMinConfidence,
+      0,
+      1
+    )
   };
 }
 
@@ -81,6 +97,17 @@ function parseInteger(value: string | undefined, fallback: number, min: number) 
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.trunc(parsed));
+}
+
+function parseFloatSetting(value: string | undefined, fallback: number, min: number, max: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
+function parseSourceDiscoveryMode(value: string | undefined, fallback: string) {
+  if (value === "candidates_only" || value === "auto_add_disabled" || value === "auto_add_high_confidence_disabled") return value;
+  return fallback;
 }
 
 function readFormValue(formData: FormData, key: string) {

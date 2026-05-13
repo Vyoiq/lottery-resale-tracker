@@ -30,6 +30,51 @@ model WatchSource {
   @@index([storeName])
 }
 
+model DiscoveryQuery {
+  id                String             @id @default(cuid())
+  name              String
+  query             String
+  type              String             @default("both")
+  category          String             @default("other")
+  enabled           Boolean            @default(true)
+  memo              String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  discoveredSources DiscoveredSource[]
+
+  @@index([enabled])
+  @@index([type])
+  @@index([category])
+}
+
+model DiscoveredSource {
+  id               String          @id @default(cuid())
+  discoveryQueryId String
+  title            String
+  url              String
+  normalizedUrl    String          @unique
+  description      String?
+  detectedType     String          @default("unknown")
+  category         String          @default("other")
+  confidenceScore  Float           @default(0)
+  matchedKeywords  String?
+  reason           String?
+  status           String          @default("new")
+  discoveredAt     DateTime        @default(now())
+  lastSeenAt       DateTime        @default(now())
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  discoveryQuery   DiscoveryQuery  @relation(fields: [discoveryQueryId], references: [id], onDelete: Cascade)
+
+  @@index([discoveryQueryId])
+  @@index([detectedType])
+  @@index([category])
+  @@index([confidenceScore])
+  @@index([status])
+  @@index([discoveredAt])
+  @@index([lastSeenAt])
+}
+
 model LotteryListing {
   id                       String         @id @default(cuid())
   title                    String

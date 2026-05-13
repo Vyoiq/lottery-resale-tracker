@@ -57,7 +57,10 @@ export default async function DashboardPage() {
     recommendedSourcePresets,
     recommendedPriceSourcePresets,
     existingWatchSourceUrls,
-    existingPriceSources
+    existingPriceSources,
+    newWatchSourceCandidateCount,
+    newPriceSourceCandidateCount,
+    uncheckedDiscoveredSourceCount
   ] = await Promise.all([
     prisma.lotteryListing.findMany({
       where: {
@@ -119,7 +122,10 @@ export default async function DashboardPage() {
     prisma.sourcePreset.findMany({ where: { recommended: true }, select: { url: true } }),
     prisma.priceSourcePreset.findMany({ where: { recommended: true }, select: { baseUrl: true, searchUrlTemplate: true } }),
     prisma.watchSource.findMany({ select: { url: true } }),
-    prisma.priceSource.findMany({ select: { baseUrl: true, searchUrlTemplate: true } })
+    prisma.priceSource.findMany({ select: { baseUrl: true, searchUrlTemplate: true } }),
+    prisma.discoveredSource.count({ where: { status: "new", detectedType: "watch_source_candidate" } }),
+    prisma.discoveredSource.count({ where: { status: "new", detectedType: "price_source_candidate" } }),
+    prisma.discoveredSource.count({ where: { status: "new" } })
   ]);
 
   const statusCounts = Object.fromEntries(statusGroups.map((item) => [item.applicationStatus, item._count]));
@@ -169,11 +175,24 @@ export default async function DashboardPage() {
           <form action={createBackupAction}>
             <button className={secondaryButtonClass} type="submit">バックアップ作成</button>
           </form>
+          <Link href="/simple" className={buttonClass}>シンプルモードで見る</Link>
           <Link href="/getting-started" className={secondaryButtonClass}>初回セットアップガイド</Link>
           <Link href="/health" className={secondaryButtonClass}>ヘルスチェック</Link>
           <Link href="/backups" className={secondaryButtonClass}>バックアップ一覧へ</Link>
         </div>
       </PageHeader>
+
+      <Card className="mb-6 border-teal-200 bg-teal-50/70 p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-teal-950">毎日の応募判断はシンプルモードで確認</h2>
+            <p className="mt-1 text-sm leading-6 text-teal-900">
+              商品名、締切、定価、買取価格、想定利益、ROI、価格信頼度だけを絞って表示します。
+            </p>
+          </div>
+          <Link href="/simple" className={`${buttonClass} px-6 py-3 text-base`}>シンプルモードで見る</Link>
+        </div>
+      </Card>
 
       {setupWarnings.length > 0 ? (
         <Card className="mb-6 border-amber-200 bg-amber-50/70 p-4">
@@ -263,6 +282,18 @@ export default async function DashboardPage() {
           <div className="mt-3 flex flex-wrap gap-2">
             <Link href="/sources/presets" className={secondaryButtonClass}>監視ソース</Link>
             <Link href="/price-sources/presets" className={secondaryButtonClass}>価格ソース</Link>
+          </div>
+        </Card>
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <StatCard label="新しい監視ソース候補" value={`${relativeCount(newWatchSourceCandidateCount)}件`} tone={newWatchSourceCandidateCount > 0 ? "warning" : "neutral"} />
+        <StatCard label="新しい価格ソース候補" value={`${relativeCount(newPriceSourceCandidateCount)}件`} tone={newPriceSourceCandidateCount > 0 ? "warning" : "neutral"} />
+        <StatCard label="未確認の発見候補" value={`${relativeCount(uncheckedDiscoveredSourceCount)}件`} />
+        <Card className="p-4">
+          <div className="text-xs font-medium text-muted-foreground">Source Discovery</div>
+          <div className="mt-3">
+            <Link href="/source-discovery" className={buttonClass}>候補URLを確認</Link>
           </div>
         </Card>
       </div>

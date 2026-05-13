@@ -10,6 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { recalculateAllListingPriorities, recalculateListingPriority } from "@/lib/priorityService";
 import { calculateActualSaleMetrics } from "@/lib/salesCalculations";
 import { runFullOperation, runOperationTask, operationRunTypes } from "@/services/operations/operationRunner";
+import { isPlaceholderPriceSource } from "@/lib/sourceGuards";
+import { addDiscoveredSourceAsPriceSource, addDiscoveredSourceAsWatchSource, ignoreDiscoveredSource } from "@/services/sourceDiscovery/discoveryRunner";
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -143,6 +145,28 @@ export async function createSelectedPriceSourcesFromPresets(formData: FormData) 
   revalidatePath("/");
   revalidatePath("/price-sources");
   revalidatePath("/price-sources/presets");
+}
+
+export async function createDiscoveryQueryAction(formData: FormData) {
+  await prisma.discoveryQuery.create({
+    data: {
+      name: str(formData, "name") || str(formData, "query"),
+      query: str(formData, "query"),
+      type: str(formData, "type") || "both",
+      category: str(formData, "category") || "other",
+      enabled: formData.get("enabled") === "on",
+      memo: optionalStr(formData, "memo")
+    }
+  });
+  revalidatePath("/source-discovery");
+}
+
+export async function toggleDiscoveryQueryAction(formData: FormData) {
+  await prisma.discoveryQuery.update({
+    where: { id: str(formData, "id") },
+    data: { enabled: str(formData, "enabled") === "true" }
+  });
+  revalidatePath("/source-discovery");
 }
 
 export async function updateWatchSource(formData: FormData) {
@@ -302,6 +326,7 @@ export async function recordSale(formData: FormData) {
 export async function runCollectorsAction() {
   await runOperationTask("collect");
   revalidatePath("/");
+  revalidatePath("/simple");
   revalidatePath("/lotteries");
   revalidatePath("/sources");
   revalidatePath("/runs");
@@ -311,25 +336,43 @@ export async function runCollectorsAction() {
 }
 
 export async function createPriceSource(formData: FormData) {
+  const baseUrl = str(formData, "baseUrl");
+  const searchUrlTemplate = str(formData, "searchUrlTemplate");
+  const placeholder = isPlaceholderPriceSource({ baseUrl, searchUrlTemplate });
   await prisma.priceSource.create({
     data: {
       name: str(formData, "name"),
       shopName: str(formData, "shopName"),
-      baseUrl: str(formData, "baseUrl"),
-      searchUrlTemplate: str(formData, "searchUrlTemplate"),
-      enabled: formData.get("enabled") === "on",
+      baseUrl,
+      searchUrlTemplate,
+      enabled: !placeholder && formData.get("enabled") === "on",
       memo: optionalStr(formData, "memo")
     }
   });
   revalidatePath("/price-sources");
+  revalidatePath("/health");
 }
 
 export async function togglePriceSource(formData: FormData) {
+  const id = str(formData, "id");
+  const enabled = str(formData, "enabled") === "true";
+  const source = await prisma.priceSource.findUnique({
+    where: { id },
+    select: { baseUrl: true, searchUrlTemplate: true }
+  });
+  if (!source) return;
+  if (enabled && isPlaceholderPriceSource(source)) {
+    revalidatePath("/price-sources");
+    revalidatePath("/health");
+    return;
+  }
   await prisma.priceSource.update({
-    where: { id: str(formData, "id") },
-    data: { enabled: str(formData, "enabled") === "true" }
+    where: { id },
+    data: { enabled }
   });
   revalidatePath("/price-sources");
+  revalidatePath("/price-sources/presets");
+  revalidatePath("/health");
 }
 
 export async function updateLotteryRetailPrice(formData: FormData) {
@@ -381,6 +424,7 @@ export async function runPriceCheckForListingAction(formData: FormData) {
 export async function runPriceCollectorsAction() {
   await runOperationTask("price_collect");
   revalidatePath("/");
+  revalidatePath("/simple");
   revalidatePath("/lotteries");
   revalidatePath("/price-sources");
   revalidatePath("/operation-runs");
@@ -474,6 +518,15 @@ export async function runOperationTasksAction() {
   revalidateOperationViews();
 }
 
+export async function runSourceDiscoveryAction() {
+  await runOperationTask("source_discovery");
+  revalidatePath("/");
+  revalidatePath("/source-discovery");
+  revalidatePath("/sources");
+  revalidatePath("/price-sources");
+  revalidatePath("/operation-runs");
+}
+
 export async function runSingleOperationTaskAction(formData: FormData) {
   const type = str(formData, "type");
   if (!operationRunTypes.includes(type as (typeof operationRunTypes)[number]) || type === "full_run") return;
@@ -481,8 +534,42 @@ export async function runSingleOperationTaskAction(formData: FormData) {
   revalidateOperationViews();
 }
 
+export async function addDiscoveredWatchSourceAction(formData: FormData) {
+  await addDiscoveredSourceAsWatchSource(str(formData, "id"));
+  revalidateDiscoveryViews();
+}
+
+export async function addDiscoveredPriceSourceAction(formData: FormData) {
+  await addDiscoveredSourceAsPriceSource(str(formData, "id"));
+  revalidateDiscoveryViews();
+}
+
+export async function ignoreDiscoveredSourceAction(formData: FormData) {
+  await ignoreDiscoveredSource(str(formData, "id"));
+  revalidateDiscoveryViews();
+}
+
+export async function bulkAddDiscoveredWatchSourcesAction(formData: FormData) {
+  const ids = formData.getAll("ids").filter((value): value is string => typeof value === "string" && value.length > 0);
+  for (const id of ids) await addDiscoveredSourceAsWatchSource(id);
+  revalidateDiscoveryViews();
+}
+
+export async function bulkAddDiscoveredPriceSourcesAction(formData: FormData) {
+  const ids = formData.getAll("ids").filter((value): value is string => typeof value === "string" && value.length > 0);
+  for (const id of ids) await addDiscoveredSourceAsPriceSource(id);
+  revalidateDiscoveryViews();
+}
+
+export async function bulkIgnoreDiscoveredSourcesAction(formData: FormData) {
+  const ids = formData.getAll("ids").filter((value): value is string => typeof value === "string" && value.length > 0);
+  for (const id of ids) await ignoreDiscoveredSource(id);
+  revalidateDiscoveryViews();
+}
+
 function revalidateListingViews(id: string) {
   revalidatePath("/");
+  revalidatePath("/simple");
   revalidatePath("/lotteries");
   revalidatePath(`/lotteries/${id}`);
   revalidatePath("/review");
@@ -493,6 +580,8 @@ function revalidateListingViews(id: string) {
 
 function revalidateOperationViews() {
   revalidatePath("/");
+  revalidatePath("/simple");
+  revalidatePath("/source-discovery");
   revalidatePath("/operation-runs");
   revalidatePath("/settings/operations");
   revalidatePath("/runs");
@@ -500,4 +589,12 @@ function revalidateOperationViews() {
   revalidatePath("/lotteries");
   revalidatePath("/notifications");
   revalidatePath("/price-sources");
+}
+
+function revalidateDiscoveryViews() {
+  revalidatePath("/");
+  revalidatePath("/source-discovery");
+  revalidatePath("/sources");
+  revalidatePath("/price-sources");
+  revalidatePath("/health");
 }

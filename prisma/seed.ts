@@ -25,7 +25,22 @@ async function main() {
   await prisma.collectorRun.deleteMany();
   await prisma.lotteryListing.deleteMany();
   await prisma.watchSource.deleteMany();
+  await prisma.discoveredSource.deleteMany();
+  await prisma.discoveryQuery.deleteMany();
   await prisma.sourcePreset.deleteMany();
+
+  await prisma.discoveryQuery.createMany({
+    data: [
+      { name: "ポケモンカード 抽選販売", query: "ポケモンカード 抽選販売", type: "watch_source", category: "pokemon", enabled: true },
+      { name: "ポケカ 抽選 予約", query: "ポケカ 抽選 予約", type: "watch_source", category: "pokemon", enabled: true },
+      { name: "ポケモンカード スペシャルBOX 抽選", query: "ポケモンカード スペシャルBOX 抽選", type: "watch_source", category: "pokemon", enabled: true },
+      { name: "ポケモンカード 買取価格", query: "ポケモンカード 買取価格", type: "price_source", category: "pokemon", enabled: true },
+      { name: "ポケカ 買取価格", query: "ポケカ 買取価格", type: "price_source", category: "pokemon", enabled: true },
+      { name: "スペシャルBOX 買取", query: "スペシャルBOX 買取", type: "price_source", category: "pokemon", enabled: true },
+      { name: "トレカ 抽選販売", query: "トレカ 抽選販売", type: "watch_source", category: "trading_card", enabled: true },
+      { name: "トレカ 買取検索", query: "トレカ 買取検索", type: "price_source", category: "trading_card", enabled: true }
+    ]
+  });
 
   await prisma.watchSource.createMany({
     data: [

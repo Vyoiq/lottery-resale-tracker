@@ -12,7 +12,9 @@ import {
   HeartPulse,
   HelpCircle,
   Home,
+  ListChecks,
   RadioTower,
+  Search,
   ScrollText,
   Settings,
   SlidersHorizontal
@@ -26,6 +28,8 @@ export const metadata: Metadata = {
 
 const navItems = [
   { href: "/", label: "ダッシュボード", icon: Home },
+  { href: "/simple", label: "シンプル", icon: ListChecks },
+  { href: "/source-discovery", label: "ソース発見", icon: Search },
   { href: "/getting-started", label: "初回ガイド", icon: HelpCircle },
   { href: "/health", label: "ヘルスチェック", icon: HeartPulse },
   { href: "/notifications", label: "通知", icon: Bell },
@@ -47,8 +51,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ja">
       <body>
-        <div className="min-h-screen">
-          <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-border bg-card px-4 py-5 lg:block">
+        <div className="flex min-h-screen w-full">
+          <aside className="hidden w-64 shrink-0 border-r border-border bg-card px-4 py-5 lg:block">
             <div className="mb-7 flex items-center gap-3 px-2">
               <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Database size={20} />
@@ -74,7 +78,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               })}
             </nav>
           </aside>
-          <div className="lg:pl-64">
+          <div className="flex min-w-0 flex-1 flex-col">
             <header className="sticky top-0 z-10 border-b border-border bg-card/95 px-5 py-3 backdrop-blur lg:hidden">
               <div className="mb-3 text-sm font-semibold">Lottery Listings</div>
               <nav className="flex gap-2 overflow-x-auto pb-1">
@@ -85,7 +89,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 ))}
               </nav>
             </header>
-            <main className="mx-auto max-w-7xl px-5 py-6">{children}</main>
+            <main className="w-full min-w-0 flex-1 px-5 py-6">
+              <div className="mx-auto w-full max-w-7xl min-w-0">{children}</div>
+            </main>
           </div>
         </div>
       </body>

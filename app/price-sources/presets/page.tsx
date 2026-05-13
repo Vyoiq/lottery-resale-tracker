@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { createPriceSourceFromPreset, createSelectedPriceSourcesFromPresets } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
+import { isPlaceholderPriceSource } from "@/lib/sourceGuards";
 import { Badge, buttonClass, Card, EmptyState, inputClass, PageHeader, secondaryButtonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -43,16 +45,29 @@ export default async function PriceSourcePresetsPage({
     },
     orderBy: [{ recommended: "desc" }, { category: "asc" }, { shopName: "asc" }, { name: "asc" }]
   });
-  const existing = await prisma.priceSource.findMany({ select: { searchUrlTemplate: true, baseUrl: true } });
-  const existingTemplates = new Set(existing.map((source) => source.searchUrlTemplate));
-  const existingBaseUrls = new Set(existing.map((source) => source.baseUrl));
+  const existing = await prisma.priceSource.findMany({ select: { searchUrlTemplate: true, baseUrl: true, enabled: true } });
+  const findExisting = (preset: { searchUrlTemplate: string; baseUrl: string }) =>
+    existing.find((source) => source.searchUrlTemplate === preset.searchUrlTemplate || source.baseUrl === preset.baseUrl);
 
   return (
     <>
       <PageHeader
         title="価格ソースプリセット"
         description="買取価格検索ページの候補を PriceSource にコピーします。追加時は必ず無効状態になり、取得前にURLと利用規約を確認してください。"
-      />
+      >
+        <Link href="/price-sources" className={secondaryButtonClass}>価格ソース管理へ</Link>
+      </PageHeader>
+
+      <Card className="mb-4 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
+        <div className="font-semibold">プリセット追加は有効化ではありません</div>
+        <p className="mt-1">
+          ここでの「追加済み」は PriceSource にコピー済みという意味です。実際に価格取得へ使うには、価格ソース管理画面でURLを確認し、有効化してください。
+          `example.com` を含むURLはプレースホルダーなので、実在する公開検索URLへ差し替えるまで有効化できません。
+        </p>
+        <div className="mt-3">
+          <Link href="/price-sources" className={secondaryButtonClass}>価格ソース管理へ</Link>
+        </div>
+      </Card>
 
       <Card className="mb-4 p-4">
         <form className="grid gap-3 md:grid-cols-[1fr_180px_160px_auto]">
@@ -92,7 +107,9 @@ export default async function PriceSourcePresetsPage({
               </thead>
               <tbody>
                 {presets.map((preset) => {
-                  const added = existingTemplates.has(preset.searchUrlTemplate) || existingBaseUrls.has(preset.baseUrl);
+                  const existingSource = findExisting(preset);
+                  const added = Boolean(existingSource);
+                  const placeholder = isPlaceholderPriceSource(preset);
                   return (
                     <tr key={preset.id} className="border-t border-border align-top">
                       <td className="px-4 py-3">
@@ -102,13 +119,16 @@ export default async function PriceSourcePresetsPage({
                         {preset.name}
                         <div className="mt-1 flex gap-1">
                           {preset.recommended ? <Badge tone="primary">推奨</Badge> : null}
-                          {added ? <Badge tone="success">追加済み</Badge> : null}
+                          {added ? <Badge tone="warning">追加済み（未有効の可能性あり）</Badge> : null}
+                          {added ? <Badge tone={existingSource?.enabled ? "success" : "neutral"}>{existingSource?.enabled ? "PriceSource: 有効" : "PriceSource: 無効"}</Badge> : null}
+                          {placeholder ? <Badge tone="warning">要差し替え</Badge> : null}
                         </div>
                       </td>
                       <td className="px-4 py-3">{preset.shopName}</td>
                       <td className="max-w-md truncate px-4 py-3">
                         {preset.searchUrlTemplate}
                         <div className="text-xs text-muted-foreground">{preset.baseUrl}</div>
+                        {placeholder ? <div className="mt-1 text-xs font-medium text-amber-700">example.com を含むプレースホルダーURLです。実在URLへ差し替えてください。</div> : null}
                       </td>
                       <td className="px-4 py-3">{categoryLabels[preset.category] ?? preset.category}</td>
                       <td className="max-w-40 px-4 py-3 text-xs text-muted-foreground">{preset.tags ?? "-"}</td>
