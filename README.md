@@ -176,8 +176,24 @@ API:
 - `GET /api/backups`
 - `GET /api/backups/[id]/download`
 - `DELETE /api/backups/[id]`
+- `POST /api/backups/[id]/restore`
 
-復元機能はまだ実装していません。
+## バックアップからの復元
+
+`/backups` の「復元」ボタンから、BackupRecord に登録済みのバックアップDBを現在の SQLite DB に復元できます。
+
+復元は現在のDBを上書きする危険な操作です。実行前に確認ダイアログで、復元対象のファイル名、作成日時、サイズを表示します。
+
+安全仕様:
+- 復元前に現在のDBを `pre-restore-backup-YYYYMMDD-HHmmss.db` として自動バックアップします。
+- 復元対象は BackupRecord に登録済みのものだけです。
+- `backups/` 配下の `.db` ファイルだけを復元対象にします。
+- `backups/` 外の任意パスや path traversal は拒否します。
+- 復元結果は `/operation-runs` に `バックアップ復元` として記録します。
+
+Windowsでは、Next.js dev server や Prisma Client が SQLite DB ファイルを掴んでいる場合、復元に失敗することがあります。その場合は `npm run dev` を停止し、必要なら Node.js プロセスが残っていないことを確認してから再実行してください。
+
+復元後は、起動中のアプリが古い Prisma 接続を保持している可能性があります。表示や操作に違和感がある場合は dev server を再起動してください。
 
 ## JSONエクスポート
 

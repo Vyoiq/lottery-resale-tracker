@@ -106,6 +106,7 @@ export function operationTypeLabel(type: string) {
     price_collect: "価格取得",
     notifications: "通知生成",
     backup: "バックアップ",
+    restore_backup: "バックアップ復元",
     full_run: "一括実行"
   }[type] ?? type;
 }

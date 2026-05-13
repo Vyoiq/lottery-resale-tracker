@@ -3,6 +3,7 @@ import { formatBytes } from "@/lib/exportUtils";
 import { dateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { buttonClass, Card, EmptyState, Field, inputClass, PageHeader, secondaryButtonClass } from "@/components/ui";
+import { RestoreBackupButton } from "@/app/backups/RestoreBackupButton";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ export default async function BackupsPage() {
 
   return (
     <>
-      <PageHeader title="バックアップ" description="SQLite DB の手動バックアップを作成、ダウンロード、削除できます。復元機能はまだ実装していません。">
+      <PageHeader title="バックアップ" description="SQLite DB の手動バックアップを作成、ダウンロード、削除、復元できます。復元前には現在のDBを自動バックアップします。">
         <form action={createBackupAction} className="flex gap-2">
           <input className={inputClass} name="memo" placeholder="メモ任意" />
           <button className={buttonClass} type="submit">バックアップ作成</button>
@@ -59,8 +60,9 @@ export default async function BackupsPage() {
                   <td className="px-4 py-3 text-right tabular-nums">{formatBytes(backup.sizeBytes)}</td>
                   <td className="max-w-sm px-4 py-3 text-muted-foreground">{backup.memo ?? "-"}</td>
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <a className={secondaryButtonClass} href={`/api/backups/${backup.id}/download`}>ダウンロード</a>
+                      <RestoreBackupButton id={backup.id} filename={backup.filename} createdAt={dateTime(backup.createdAt)} size={formatBytes(backup.sizeBytes)} />
                       <form action={deleteBackupAction}>
                         <input type="hidden" name="id" value={backup.id} />
                         <button className="inline-flex h-10 items-center justify-center rounded-md border border-rose-200 px-4 text-sm font-semibold text-rose-700 hover:bg-rose-50" type="submit">
