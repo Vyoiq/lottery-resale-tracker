@@ -117,7 +117,7 @@ function ReviewSection({ title, description, listings }: { title: string; descri
         </div>
       </div>
       {listings.length === 0 ? (
-        <div className="p-4"><EmptyState message="該当する候補はありません。" /></div>
+        <div className="p-4"><EmptyState title="確認が必要な候補はありません" message="この条件に該当する抽選はありません。新しい収集結果や価格取得結果が入ると、確認候補が表示されます。" /></div>
       ) : (
         <>
         <div className="grid gap-3 p-4 md:hidden">

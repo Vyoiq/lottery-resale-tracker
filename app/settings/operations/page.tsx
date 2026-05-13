@@ -3,7 +3,7 @@ import { getOperationSettings } from "@/lib/appSettings";
 import { dateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { operationTypeLabel } from "@/services/operations/operationRunner";
-import { Badge, buttonClass, Card, Field, inputClass, PageHeader, secondaryButtonClass } from "@/components/ui";
+import { Badge, buttonClass, Card, EmptyState, Field, inputClass, PageHeader, secondaryButtonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +72,14 @@ export default async function OperationSettingsPage() {
       </Card>
 
       <Card className="overflow-x-auto">
+        {runs.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              title="最近の実行ログはありません"
+              message="一括実行または個別実行を押すと、成功/失敗、件数、エラー詳細がここに表示されます。"
+            />
+          </div>
+        ) : (
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-muted text-left text-xs text-muted-foreground">
             <tr>
@@ -89,11 +97,18 @@ export default async function OperationSettingsPage() {
                 <td className="px-4 py-3">{dateTime(run.startedAt)}</td>
                 <td className="px-4 py-3">{dateTime(run.finishedAt)}</td>
                 <td className="px-4 py-3"><Badge tone={statusTone(run.success)}>{run.success ? "成功" : "失敗"}</Badge></td>
-                <td className="max-w-xl whitespace-pre-wrap px-4 py-3 text-muted-foreground">{run.message ?? "-"}</td>
+                <td className="max-w-xl whitespace-pre-wrap px-4 py-3">
+                  {run.success ? (
+                    <span className="text-muted-foreground">{run.message ?? "-"}</span>
+                  ) : (
+                    <pre className="rounded-md border border-rose-200 bg-rose-50 p-3 font-sans text-xs leading-5 text-rose-800">{run.message ?? "エラー詳細がありません。"}</pre>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        )}
       </Card>
     </>
   );

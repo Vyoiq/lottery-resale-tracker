@@ -47,7 +47,11 @@ export default async function SourcesPage() {
       </Card>
 
       {sources.length === 0 ? (
-        <EmptyState message="監視ソースがありません。" />
+        <EmptyState
+          title="監視ソースが未登録です"
+          message="プリセットから候補を追加するか、ログイン不要で閲覧できる公開ページ/RSSのURLを手入力してください。追加直後は必要に応じて有効化してから収集します。"
+          action={<Link href="/sources/presets" className={secondaryButtonClass}>プリセットを確認</Link>}
+        />
       ) : (
         <Card className="overflow-hidden">
           <table className="w-full text-sm">

@@ -49,12 +49,43 @@ v0.3.0 以降では、次の機能を実装しています。
 
 ## 起動方法
 
+初回は依存関係のインストール、SQLite DB の作成、サンプルデータ投入、開発サーバー起動の順に実行します。
+
 ```bash
 npm install
 npx prisma migrate dev
 npx prisma db seed
 npm run dev
 ```
+
+起動後は `http://localhost:3000` を開きます。`.env` が必要な場合はプロジェクト直下に置き、`DATABASE_URL="file:./dev.db"` のように SQLite を指す設定にしてください。
+
+## 最初にやることチェックリスト
+
+- `/sources/presets` で監視ソース候補を追加する
+- `/sources` でURL、メモ、利用規約、公開ページであることを確認してから有効化する
+- `/collector-test` で気になるURLを dry-run し、キーワードや日付抽出を確認する
+- `/price-sources/presets` で価格ソース候補を追加する
+- `/price-sources` で `searchUrlTemplate` と公開ページであることを確認してから有効化する
+- `/price-checker` で商品名を dry-run し、価格候補と confidenceScore を確認する
+- `/settings/operations` で収集、価格取得、通知、バックアップの設定を確認する
+- `/backups` で初回バックアップを作成する
+- ダッシュボードの「運用タスクをまとめて実行」で一連の処理を確認する
+- `/operation-runs` で成功/失敗、エラー詳細、確認ポイントを見る
+
+プリセットは追加しても自動では有効化されません。実際に巡回する前に、URLが正しいこと、ログイン不要であること、利用規約やアクセス頻度の方針に反しないことを確認してください。
+
+## 失敗時の確認方法
+
+画面の実行ボタンから `collect`、`collect:prices`、`notifications`、`backup`、`operate` を実行した場合、結果は `/operation-runs` に残ります。
+
+失敗または一部失敗の場合は、ログのメッセージ欄に確認ポイントと詳細を表示します。まず以下を確認してください。
+
+- 監視ソースまたは価格ソースが有効になっているか
+- 対象URLがログイン不要の公開ページとしてブラウザで開けるか
+- `.env` の `DATABASE_URL` が正しいか
+- ネットワーク接続、アクセス頻度、サイト側の一時エラーがないか
+- `backups/` に書き込みできるか
 
 ## 抽選情報の収集
 

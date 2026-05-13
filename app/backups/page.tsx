@@ -30,7 +30,15 @@ export default async function BackupsPage() {
       </Card>
 
       {backups.length === 0 ? (
-        <EmptyState message="バックアップはまだありません。" />
+        <EmptyState
+          title="バックアップはまだありません"
+          message="SQLite DB はローカルファイルなので、初回セットアップ後と運用前後にバックアップを作成しておくと安心です。作成されたDBコピーは backups/ に保存され、Gitには含めません。"
+          action={
+            <form action={createBackupAction}>
+              <button className={buttonClass} type="submit">今すぐバックアップ作成</button>
+            </form>
+          }
+        />
       ) : (
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">

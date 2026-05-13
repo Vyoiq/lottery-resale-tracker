@@ -6,6 +6,7 @@ import { createBackup, pruneBackups } from "@/services/backups/backupService";
 import { runCollectors } from "@/services/collectors/base";
 import { generateNotifications } from "@/services/notifications/generateNotifications";
 import { runPriceCollectors } from "@/services/priceCollectors/base";
+import { operationFailureMessage } from "@/lib/errorMessages";
 
 export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "full_run"] as const;
 export type OperationRunType = (typeof operationRunTypes)[number];
@@ -17,7 +18,11 @@ export type OperationStepResult = {
   runId?: string;
 };
 
-export async function runOperationTask(type: OperationRunType, client: PrismaClient = defaultPrisma): Promise<OperationStepResult> {
+type OperationTaskOptions = {
+  backupMemo?: string | null;
+};
+
+export async function runOperationTask(type: OperationRunType, client: PrismaClient = defaultPrisma, options: OperationTaskOptions = {}): Promise<OperationStepResult> {
   if (type === "full_run") return runFullOperation(client);
 
   const startedAt = new Date();
@@ -31,18 +36,18 @@ export async function runOperationTask(type: OperationRunType, client: PrismaCli
   });
 
   try {
-    const message = await executeSingleTask(type, client);
+    const result = await executeSingleTask(type, client, options);
     await client.operationRun.update({
       where: { id: run.id },
       data: {
         finishedAt: new Date(),
-        success: true,
-        message
+        success: result.success,
+        message: result.message
       }
     });
-    return { type, success: true, message, runId: run.id };
+    return { type, success: result.success, message: result.message, runId: run.id };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = operationFailureMessage(operationTypeLabel(type), error);
     await client.operationRun.update({
       where: { id: run.id },
       data: {
@@ -105,26 +110,40 @@ export function operationTypeLabel(type: string) {
   }[type] ?? type;
 }
 
-async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, client: PrismaClient) {
+async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, client: PrismaClient, options: OperationTaskOptions) {
   if (type === "collect") {
     const result = await runCollectors();
     await recalculateAllListingPriorities(client);
-    return `新規 ${result.newListingCount} 件、更新 ${result.updatedListingCount} 件、スキップ ${result.skippedCount} 件、エラー ${result.errorCount} 件`;
+    const details = result.errorMessage ? `\n\nエラー詳細:\n${result.errorMessage}` : "";
+    return {
+      success: result.errorCount === 0,
+      message: `新規 ${result.newListingCount} 件、更新 ${result.updatedListingCount} 件、スキップ ${result.skippedCount} 件、エラー ${result.errorCount} 件${details}`
+    };
   }
 
   if (type === "price_collect") {
     const result = await runPriceCollectors();
     await recalculateAllListingPriorities(client);
-    return `対象 ${result.targetCount} 件、新規 ${result.newPriceCount} 件、更新 ${result.updatedPriceCount} 件、エラー ${result.errorCount} 件`;
+    const details = result.errorMessage ? `\n\nエラー詳細:\n${result.errorMessage}` : "";
+    return {
+      success: result.errorCount === 0,
+      message: `対象 ${result.targetCount} 件、新規 ${result.newPriceCount} 件、更新 ${result.updatedPriceCount} 件、エラー ${result.errorCount} 件${details}`
+    };
   }
 
   if (type === "notifications") {
     const result = await generateNotifications(client);
-    return `確認 ${result.checkedCount} 件、候補 ${result.candidateCount} 件、新規 ${result.createdCount} 件、更新 ${result.updatedCount} 件`;
+    return {
+      success: true,
+      message: `確認 ${result.checkedCount} 件、候補 ${result.candidateCount} 件、新規 ${result.createdCount} 件、更新 ${result.updatedCount} 件`
+    };
   }
 
   const settings = await getOperationSettings(client);
-  const backup = await createBackup({ memo: "運用タスクから作成" }, client);
+  const backup = await createBackup({ memo: options.backupMemo ?? "運用タスクから作成" }, client);
   const prunedCount = await pruneBackups(settings.backupRetentionCount, client);
-  return `${backup.filename} を作成、保持件数超過 ${prunedCount} 件を削除`;
+  return {
+    success: true,
+    message: `${backup.filename} を作成、保持件数超過 ${prunedCount} 件を削除`
+  };
 }

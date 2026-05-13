@@ -1,4 +1,5 @@
 import { runOperationTask } from "@/services/operations/operationRunner";
+import { operationFailureMessage } from "@/lib/errorMessages";
 
 async function main() {
   const result = await runOperationTask("backup");
@@ -8,6 +9,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error(operationFailureMessage("バックアップ", error));
   process.exit(1);
 });

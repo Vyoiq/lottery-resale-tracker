@@ -70,7 +70,7 @@ export default async function PriceSourcePresetsPage({
       </Card>
 
       {presets.length === 0 ? (
-        <EmptyState message="条件に一致する価格ソースプリセットはありません。" />
+        <EmptyState title="条件に一致する価格ソースプリセットはありません" message="カテゴリ、推奨のみ、キーワード検索を外して再確認してください。公開検索URLが分かっている場合は価格ソース画面から手入力できます。" />
       ) : (
         <form action={createSelectedPriceSourcesFromPresets}>
           <div className="mb-3 flex justify-end">

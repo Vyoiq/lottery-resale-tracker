@@ -1,7 +1,7 @@
 import { dateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { operationTypeLabel } from "@/services/operations/operationRunner";
-import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader, secondaryButtonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,11 @@ export default async function OperationRunsPage() {
     <>
       <PageHeader title="運用実行ログ" description="収集、価格取得、通知、バックアップ、一括実行の結果を確認します。" />
       {runs.length === 0 ? (
-        <EmptyState message="運用実行ログはありません。" />
+        <EmptyState
+          title="運用実行ログはまだありません"
+          message="ダッシュボードまたは運用設定画面から、収集・価格取得・通知生成・バックアップを実行すると結果がここに残ります。失敗時はメッセージ欄に確認ポイントと詳細を表示します。"
+          action={<a className={secondaryButtonClass} href="/settings/operations">運用設定へ</a>}
+        />
       ) : (
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[960px] text-sm">
@@ -37,7 +41,13 @@ export default async function OperationRunsPage() {
                   <td className="px-4 py-3">
                     <Badge tone={run.success ? "success" : "danger"}>{run.success ? "成功" : "失敗"}</Badge>
                   </td>
-                  <td className="max-w-2xl whitespace-pre-wrap px-4 py-3 text-muted-foreground">{run.message ?? "-"}</td>
+                  <td className="max-w-2xl whitespace-pre-wrap px-4 py-3">
+                    {run.success ? (
+                      <span className="text-muted-foreground">{run.message ?? "-"}</span>
+                    ) : (
+                      <pre className="rounded-md border border-rose-200 bg-rose-50 p-3 font-sans text-xs leading-5 text-rose-800">{run.message ?? "エラー詳細がありません。"}</pre>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

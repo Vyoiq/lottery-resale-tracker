@@ -1,15 +1,14 @@
-import { generateNotifications } from "@/services/notifications/generateNotifications";
+import { operationFailureMessage } from "@/lib/errorMessages";
+import { runOperationTask } from "@/services/operations/operationRunner";
 
 async function main() {
-  const result = await generateNotifications();
-  console.log("Notification generation finished");
-  console.log(`Checked listings: ${result.checkedCount}`);
-  console.log(`Notification candidates: ${result.candidateCount}`);
-  console.log(`Created: ${result.createdCount}`);
-  console.log(`Updated: ${result.updatedCount}`);
+  const result = await runOperationTask("notifications");
+  console.log(`notification generation finished: success=${result.success}`);
+  console.log(result.message);
+  if (!result.success) process.exitCode = 1;
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error(operationFailureMessage("通知生成", error));
   process.exit(1);
 });

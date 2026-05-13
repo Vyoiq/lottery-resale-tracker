@@ -69,7 +69,7 @@ export default async function SourcePresetsPage({
       </Card>
 
       {presets.length === 0 ? (
-        <EmptyState message="条件に一致するプリセットはありません。" />
+        <EmptyState title="条件に一致するプリセットはありません" message="カテゴリ、推奨のみ、キーワード検索を外して再確認してください。URLが不確実な場合は手入力で追加できます。" />
       ) : (
         <form action={createSelectedWatchSourcesFromPresets}>
           <div className="mb-3 flex justify-end">

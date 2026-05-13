@@ -1,4 +1,5 @@
 import { runFullOperation } from "@/services/operations/operationRunner";
+import { operationFailureMessage } from "@/lib/errorMessages";
 
 async function main() {
   const result = await runFullOperation();
@@ -7,6 +8,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error(operationFailureMessage("一括実行", error));
   process.exit(1);
 });

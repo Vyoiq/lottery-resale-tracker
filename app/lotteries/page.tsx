@@ -125,7 +125,11 @@ export default async function LotteriesPage({
       </Card>
 
       {listings.length === 0 ? (
-        <EmptyState message="抽選情報がありません。" />
+        <EmptyState
+          title="条件に一致する抽選情報がありません"
+          message="検索条件を外すか、監視ソースを有効化して抽選情報収集を実行してください。初回は /sources/presets から候補を追加すると始めやすいです。"
+          action={<Link href="/sources/presets" className={secondaryButtonClass}>監視ソースプリセットへ</Link>}
+        />
       ) : (
         <>
         <div className="grid gap-3 md:hidden">

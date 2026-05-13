@@ -101,6 +101,20 @@ export const dangerButtonClass =
 export const smallButtonClass =
   "inline-flex min-h-9 items-center justify-center rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold transition hover:bg-muted";
 
-export function EmptyState({ message }: { message: string }) {
-  return <div className="rounded-md border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">{message}</div>;
+export function EmptyState({
+  message,
+  title = "表示できるデータがありません",
+  action
+}: {
+  message: string;
+  title?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-md border border-dashed border-border bg-muted/30 p-8 text-center">
+      <div className="font-semibold text-foreground">{title}</div>
+      <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{message}</p>
+      {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
+    </div>
+  );
 }

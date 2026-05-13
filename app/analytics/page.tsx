@@ -85,7 +85,7 @@ export default async function AnalyticsPage() {
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="overflow-hidden">
           <div className="border-b border-border p-4"><h2 className="font-semibold">月別確定利益</h2></div>
-          {monthlyProfit.length === 0 ? <div className="p-4"><EmptyState message="売却履歴がありません。" /></div> : (
+          {monthlyProfit.length === 0 ? <div className="p-4"><EmptyState title="月別利益はまだ表示できません" message="売却記録が登録されると、月ごとの確定利益がここに表示されます。まずは抽選詳細から購入・売却履歴を記録してください。" /></div> : (
             <table className="w-full text-sm">
               <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr><th className="px-4 py-3">月</th><th className="px-4 py-3 text-right">売却数</th><th className="px-4 py-3 text-right">確定利益</th></tr>
@@ -99,7 +99,7 @@ export default async function AnalyticsPage() {
 
         <Card className="overflow-hidden">
           <div className="border-b border-border p-4"><h2 className="font-semibold">店舗別当選率</h2></div>
-          {storeRows.length === 0 ? <div className="p-4"><EmptyState message="応募履歴がありません。" /></div> : (
+          {storeRows.length === 0 ? <div className="p-4"><EmptyState title="店舗別当選率はまだ表示できません" message="応募済み、当選、落選などの応募状況を記録すると、店舗ごとの当選率を確認できます。" /></div> : (
             <table className="w-full text-sm">
               <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr><th className="px-4 py-3">店舗</th><th className="px-4 py-3 text-right">応募</th><th className="px-4 py-3 text-right">当選</th><th className="px-4 py-3 text-right">当選率</th></tr>
@@ -114,7 +114,7 @@ export default async function AnalyticsPage() {
 
       <Card className="mt-6 overflow-hidden">
         <div className="border-b border-border p-4"><h2 className="font-semibold">商品別利益ランキング</h2></div>
-        {productRanking.length === 0 ? <div className="p-4"><EmptyState message="売却履歴がありません。" /></div> : (
+        {productRanking.length === 0 ? <div className="p-4"><EmptyState title="商品別利益ランキングはまだありません" message="売却済みの履歴が登録されると、実利益が高い順に商品を確認できます。" /></div> : (
           <table className="w-full text-sm">
             <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>

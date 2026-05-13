@@ -2,11 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { runCollectors } from "@/services/collectors/base";
-import { collectPricesForListing, runPriceCollectors } from "@/services/priceCollectors/base";
+import { collectPricesForListing } from "@/services/priceCollectors/base";
 import { refreshListingBestPrice } from "@/services/priceCollectors/savePriceRecords";
-import { generateNotifications } from "@/services/notifications/generateNotifications";
-import { createBackup, deleteBackup } from "@/services/backups/backupService";
+import { deleteBackup } from "@/services/backups/backupService";
 import { operationSettingsFromForm, saveOperationSettings } from "@/lib/appSettings";
 import { prisma } from "@/lib/prisma";
 import { recalculateAllListingPriorities, recalculateListingPriority } from "@/lib/priorityService";
@@ -302,12 +300,12 @@ export async function recordSale(formData: FormData) {
 }
 
 export async function runCollectorsAction() {
-  await runCollectors();
-  await recalculateAllListingPriorities(prisma);
+  await runOperationTask("collect");
   revalidatePath("/");
   revalidatePath("/lotteries");
   revalidatePath("/sources");
   revalidatePath("/runs");
+  revalidatePath("/operation-runs");
   revalidatePath("/review");
   revalidatePath("/settings/score-tuning");
 }
@@ -381,11 +379,11 @@ export async function runPriceCheckForListingAction(formData: FormData) {
 }
 
 export async function runPriceCollectorsAction() {
-  await runPriceCollectors();
-  await recalculateAllListingPriorities(prisma);
+  await runOperationTask("price_collect");
   revalidatePath("/");
   revalidatePath("/lotteries");
   revalidatePath("/price-sources");
+  revalidatePath("/operation-runs");
   revalidatePath("/review");
   revalidatePath("/settings/score-tuning");
 }
@@ -420,10 +418,11 @@ export async function toggleExclusionKeyword(formData: FormData) {
 }
 
 export async function generateNotificationsAction() {
-  await generateNotifications();
+  await runOperationTask("notifications");
   revalidatePath("/");
   revalidatePath("/notifications");
   revalidatePath("/lotteries");
+  revalidatePath("/operation-runs");
 }
 
 export async function markNotificationRead(formData: FormData) {
@@ -452,9 +451,10 @@ export async function markAllNotificationsRead() {
 
 export async function createBackupAction(formData?: FormData) {
   const memo = formData ? optionalStr(formData, "memo") : null;
-  await createBackup({ memo });
+  await runOperationTask("backup", prisma, { backupMemo: memo ?? "手動バックアップ" });
   revalidatePath("/");
   revalidatePath("/backups");
+  revalidatePath("/operation-runs");
 }
 
 export async function deleteBackupAction(formData: FormData) {

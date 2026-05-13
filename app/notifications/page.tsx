@@ -69,7 +69,15 @@ export default async function NotificationsPage({
       </Card>
 
       {notifications.length === 0 ? (
-        <EmptyState message="通知はありません。" />
+        <EmptyState
+          title="通知はまだありません"
+          message="抽選情報と価格情報が揃ったあとに通知を更新すると、締切間近、価格取得エラー、未応募などの確認候補が表示されます。"
+          action={
+            <form action={generateNotificationsAction}>
+              <button className={secondaryButtonClass} type="submit">通知を更新</button>
+            </form>
+          }
+        />
       ) : (
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-sm">

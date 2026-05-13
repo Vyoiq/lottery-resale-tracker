@@ -31,7 +31,11 @@ export default async function PriceSourcesPage() {
       </Card>
 
       {sources.length === 0 ? (
-        <EmptyState message="価格ソースがありません。" />
+        <EmptyState
+          title="価格ソースが未登録です"
+          message="買取価格を自動取得するには、公開検索ページのURLテンプレートを登録します。プリセットから追加したあと、URLと利用規約を確認して有効化してください。"
+          action={<Link href="/price-sources/presets" className={secondaryButtonClass}>価格ソースプリセットを確認</Link>}
+        />
       ) : (
         <Card className="overflow-hidden">
           <table className="w-full text-sm">

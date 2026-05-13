@@ -251,7 +251,12 @@ export default async function DashboardPage() {
             <div><span className="text-muted-foreground">種別</span><div className="font-medium">{operationTypeLabel(latestOperationRun.type)}</div></div>
             <div><span className="text-muted-foreground">開始</span><div>{dateTime(latestOperationRun.startedAt)}</div></div>
             <div><span className="text-muted-foreground">結果</span><div><Badge tone={latestOperationRun.success ? "success" : "danger"}>{latestOperationRun.success ? "成功" : "失敗"}</Badge></div></div>
-            <div><span className="text-muted-foreground">メッセージ</span><pre className="mt-1 whitespace-pre-wrap font-sans text-muted-foreground">{latestOperationRun.message ?? "-"}</pre></div>
+            <div>
+              <span className="text-muted-foreground">メッセージ</span>
+              <pre className={`mt-1 whitespace-pre-wrap rounded-md p-2 font-sans text-xs leading-5 ${latestOperationRun.success ? "bg-muted/40 text-muted-foreground" : "border border-rose-200 bg-rose-50 text-rose-800"}`}>
+                {latestOperationRun.message ?? "-"}
+              </pre>
+            </div>
           </div>
         ) : (
           <EmptyState message="運用タスクはまだ実行されていません。" />
