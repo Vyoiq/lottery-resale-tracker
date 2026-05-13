@@ -138,6 +138,14 @@ export default async function DashboardPage() {
   const unaddedRecommendedPresetCount =
     recommendedSourcePresets.filter((preset) => !existingWatchUrls.has(preset.url)).length +
     recommendedPriceSourcePresets.filter((preset) => !existingPriceBaseUrls.has(preset.baseUrl) && !existingPriceTemplates.has(preset.searchUrlTemplate)).length;
+  const latestOperationAt = latestOperationRun?.finishedAt ?? latestOperationRun?.startedAt ?? null;
+  const isOperationStale = latestOperationAt ? now.getTime() - latestOperationAt.getTime() > 24 * 60 * 60 * 1000 : true;
+  const setupWarnings = [
+    sourcesCount === 0 ? { title: "有効な監視ソースが0件です", body: "抽選情報を収集するには、監視ソースを追加して有効化してください。", href: "/sources/presets", link: "監視ソースプリセットへ" } : null,
+    activePriceSourceCount === 0 ? { title: "有効な価格ソースが0件です", body: "買取価格候補を取得するには、価格ソースを追加して有効化してください。", href: "/price-sources/presets", link: "価格ソースプリセットへ" } : null,
+    backupCount === 0 ? { title: "バックアップが未作成です", body: "SQLite DBの消失に備えて、初回設定後にバックアップを作成してください。", href: "/backups", link: "バックアップへ" } : null,
+    isOperationStale ? { title: "最終運用実行から24時間以上経過しています", body: "毎日使う場合は、一括実行または npm run operate の定期実行を確認してください。", href: "/settings/operations", link: "運用設定へ" } : null
+  ].filter((item): item is { title: string; body: string; href: string; link: string } => Boolean(item));
 
   return (
     <>
@@ -161,9 +169,32 @@ export default async function DashboardPage() {
           <form action={createBackupAction}>
             <button className={secondaryButtonClass} type="submit">バックアップ作成</button>
           </form>
+          <Link href="/getting-started" className={secondaryButtonClass}>初回セットアップガイド</Link>
+          <Link href="/health" className={secondaryButtonClass}>ヘルスチェック</Link>
           <Link href="/backups" className={secondaryButtonClass}>バックアップ一覧へ</Link>
         </div>
       </PageHeader>
+
+      {setupWarnings.length > 0 ? (
+        <Card className="mb-6 border-amber-200 bg-amber-50/70 p-4">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-amber-950">初回設定・運用状態の確認が必要です</h2>
+              <p className="mt-1 text-sm text-amber-900">収集、価格取得、バックアップ、定期実行の準備状況を確認してください。</p>
+            </div>
+            <Link href="/getting-started" className={secondaryButtonClass}>初回ガイドを見る</Link>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {setupWarnings.map((warning) => (
+              <div key={warning.title} className="rounded-md border border-amber-200 bg-white/70 p-3">
+                <div className="font-medium text-amber-950">{warning.title}</div>
+                <p className="mt-1 text-sm leading-6 text-amber-900">{warning.body}</p>
+                <Link href={warning.href} className="mt-2 inline-flex text-sm font-semibold text-primary">{warning.link}</Link>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       <div className="mb-6 grid gap-4 xl:grid-cols-[1.1fr_1fr_1.2fr]">
         <Card className="p-4">

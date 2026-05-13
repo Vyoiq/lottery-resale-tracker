@@ -31,6 +31,23 @@ v0.3.0 以降では、次の機能を実装しています。
 - 分析ページでの月別利益、商品別利益、店舗別当選率の確認
 - 売却履歴CSVエクスポート
 
+## v1.0.0 到達時点の機能一覧
+
+v1.0.0 では、ローカルPCで個人運用するための安定版として以下を備えています。
+
+- 公開ページ/RSSからの抽選販売情報収集
+- 公開価格ページからの買取価格候補取得
+- 利益、利益率、ROI、倍率、応募優先度スコアの表示
+- 誤検出レビュー、除外キーワード、ユーザー判定フィードバック
+- 応募、当選、落選、購入、売却、スキップの手動記録
+- 実利益、実利益率、実ROIの集計
+- アプリ内通知と既読管理
+- SQLite DB のバックアップ、ダウンロード、削除、復元
+- JSON/CSV エクスポート
+- 運用設定、一括実行、運用実行ログ
+- Windows タスクスケジューラ用の `.bat` / `.ps1`
+- 初回セットアップガイドとヘルスチェック
+
 ## 今後の開発予定
 
 今後は、実運用での検出精度と使いやすさを高める方向で改善します。
@@ -60,6 +77,20 @@ npm run dev
 
 起動後は `http://localhost:3000` を開きます。`.env` が必要な場合はプロジェクト直下に置き、`DATABASE_URL="file:./dev.db"` のように SQLite を指す設定にしてください。
 
+## 初回セットアップ手順
+
+画面で確認する場合は `/getting-started` を開いてください。
+
+1. `/sources/presets` で監視ソース候補を追加する
+2. `/sources` でURLと利用規約を確認し、使うものだけ `enabled` にする
+3. `/price-sources/presets` で価格ソース候補を追加する
+4. `/price-sources` で `searchUrlTemplate` を確認し、使うものだけ `enabled` にする
+5. `/collector-test` と `/price-checker` で dry-run 確認する
+6. `npm run operate` またはダッシュボードの一括実行を実行する
+7. `/backups` でバックアップを作成する
+8. 必要に応じて Windows タスクスケジューラに `scripts/windows/operate.bat` と `scripts/windows/backup.bat` を登録する
+9. `/health` でDB、ソース、バックアップ、ログディレクトリの状態を確認する
+
 ## 最初にやることチェックリスト
 
 - `/sources/presets` で監視ソース候補を追加する
@@ -75,6 +106,22 @@ npm run dev
 
 プリセットは追加しても自動では有効化されません。実際に巡回する前に、URLが正しいこと、ログイン不要であること、利用規約やアクセス頻度の方針に反しないことを確認してください。
 
+## よく使うコマンド一覧
+
+```bash
+npm run dev
+npm run build
+npm run collect
+npm run collect -- --dry-run
+npm run collect:prices
+npm run collect:prices -- --dry-run
+npm run notifications
+npm run backup
+npm run operate
+npx prisma migrate dev
+npx prisma db seed
+```
+
 ## 失敗時の確認方法
 
 画面の実行ボタンから `collect`、`collect:prices`、`notifications`、`backup`、`operate` を実行した場合、結果は `/operation-runs` に残ります。
@@ -86,6 +133,27 @@ npm run dev
 - `.env` の `DATABASE_URL` が正しいか
 - ネットワーク接続、アクセス頻度、サイト側の一時エラーがないか
 - `backups/` に書き込みできるか
+
+## 困ったときの確認順
+
+1. `/health` でDB接続、ソース件数、最終実行日時、ディレクトリ有無を確認する
+2. `/operation-runs` で一括実行や個別実行のエラー詳細を見る
+3. `/runs` と `/runs/[id]` で抽選情報収集のソース別結果を見る
+4. `/sources` と `/price-sources` で対象ソースが `enabled` になっているか確認する
+5. `/collector-test` と `/price-checker` で dry-run し、URL取得、キーワード、日付、価格候補を確認する
+6. `backups/` と `/backups` でバックアップが作られているか確認する
+7. Windows タスクスケジューラ運用の場合は `logs/` の `.log` を確認する
+
+## Gitタグ運用メモ
+
+安定版の節目では `main` にマージ後、セマンティックバージョンのタグを付けます。
+
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+小さな修正は patch、日常運用の改善は minor、DB設計や運用手順が大きく変わる場合は major として扱います。
 
 ## 抽選情報の収集
 

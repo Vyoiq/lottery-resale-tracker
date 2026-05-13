@@ -9,6 +9,8 @@ import {
   ClipboardList,
   Database,
   FlaskConical,
+  HeartPulse,
+  HelpCircle,
   Home,
   RadioTower,
   ScrollText,
@@ -24,6 +26,8 @@ export const metadata: Metadata = {
 
 const navItems = [
   { href: "/", label: "ダッシュボード", icon: Home },
+  { href: "/getting-started", label: "初回ガイド", icon: HelpCircle },
+  { href: "/health", label: "ヘルスチェック", icon: HeartPulse },
   { href: "/notifications", label: "通知", icon: Bell },
   { href: "/backups", label: "バックアップ", icon: Archive },
   { href: "/settings/operations", label: "運用設定", icon: Activity },
