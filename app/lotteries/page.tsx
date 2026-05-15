@@ -25,6 +25,7 @@ export default async function LotteriesPage({
     q?: string;
     productName?: string;
     storeName?: string;
+    availability?: string;
     status?: string;
     priceStatus?: string;
     applicationStatus?: string;
@@ -36,6 +37,7 @@ export default async function LotteriesPage({
   const q = searchParams.q?.trim() ?? "";
   const productName = searchParams.productName?.trim() ?? "";
   const storeName = searchParams.storeName?.trim() ?? "";
+  const availability = searchParams.availability?.trim() ?? "active";
   const status = searchParams.status?.trim() ?? "";
   const priceStatus = searchParams.priceStatus?.trim() ?? "";
   const applicationStatus = searchParams.applicationStatus?.trim() ?? "";
@@ -47,6 +49,13 @@ export default async function LotteriesPage({
     where: {
       AND: [
         ignored === "all" ? {} : { ignored: ignored === "true" },
+        availability === "active"
+          ? { status: "active", applicationEndAt: { gte: new Date() } }
+          : availability === "ended"
+            ? { status: "ended" }
+            : availability === "unknown"
+              ? { status: "unknown" }
+              : {},
         status ? { status } : {},
         priceStatus ? { priceStatus } : {},
         applicationStatus ? { applicationStatus } : {},
@@ -86,10 +95,16 @@ export default async function LotteriesPage({
       </PageHeader>
 
       <Card className="mb-4 p-4">
-        <form className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_150px_150px_130px_130px_140px_130px_130px_150px_auto]">
+        <form className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_150px_150px_130px_130px_130px_140px_130px_130px_150px_auto]">
           <input className={inputClass} name="q" defaultValue={q} placeholder="キーワード検索" />
           <input className={inputClass} name="productName" defaultValue={productName} placeholder="商品名" />
           <input className={inputClass} name="storeName" defaultValue={storeName} placeholder="店舗名" />
+          <select className={inputClass} name="availability" defaultValue={availability}>
+            <option value="active">受付中のみ</option>
+            <option value="ended">終了済み</option>
+            <option value="unknown">日付不明</option>
+            <option value="all">すべて</option>
+          </select>
           <select className={inputClass} name="status" defaultValue={status}>
             <option value="">抽選状態すべて</option>
             {listingStatuses.map((item) => <option key={item} value={item}>{listingStatusLabels[item]}</option>)}

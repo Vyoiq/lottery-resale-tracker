@@ -62,6 +62,23 @@ model DiscoveredSource {
   providerName     String?
   searchUrlTemplateCandidate String?
   requiresReview   Boolean         @default(false)
+  rawText          String?
+  aiClassifiedAt   DateTime?
+  aiModel          String?
+  aiIsLotteryApplicationPage Boolean?
+  aiIsCurrentlyOpen Boolean?
+  aiIsPastOrEnded  Boolean?
+  aiIsJustArticle  Boolean?
+  aiIsProductSalesPage Boolean?
+  aiIsPriceBuybackPage Boolean?
+  aiCategory       String?
+  aiConfidenceScore Float?
+  aiApplicationStartAt DateTime?
+  aiApplicationEndAt DateTime?
+  aiResultAnnouncementAt DateTime?
+  aiPurchaseDeadlineAt DateTime?
+  aiReason         String?
+  aiExcludeReason  String?
   status           String          @default("new")
   discoveredAt     DateTime        @default(now())
   lastSeenAt       DateTime        @default(now())
@@ -73,6 +90,9 @@ model DiscoveredSource {
   @@index([detectedType])
   @@index([category])
   @@index([confidenceScore])
+  @@index([aiIsLotteryApplicationPage])
+  @@index([aiIsCurrentlyOpen])
+  @@index([aiConfidenceScore])
   @@index([status])
   @@index([discoveredAt])
   @@index([lastSeenAt])
@@ -109,6 +129,22 @@ model LotteryListing {
   priceMultiplier          Float?
   priceCheckedAt           DateTime?
   priceStatus              String         @default("unchecked")
+  aiClassifiedAt           DateTime?
+  aiModel                  String?
+  aiIsLotteryApplicationPage Boolean?
+  aiIsCurrentlyOpen        Boolean?
+  aiIsPastOrEnded          Boolean?
+  aiIsJustArticle          Boolean?
+  aiIsProductSalesPage     Boolean?
+  aiIsPriceBuybackPage     Boolean?
+  aiCategory               String?
+  aiConfidenceScore        Float?
+  aiApplicationStartAt     DateTime?
+  aiApplicationEndAt       DateTime?
+  aiResultAnnouncementAt   DateTime?
+  aiPurchaseDeadlineAt     DateTime?
+  aiReason                 String?
+  aiExcludeReason          String?
   applicationPriorityScore Float          @default(0)
   applicationPriorityLabel String         @default("D")
   ignored                  Boolean        @default(false)
@@ -148,6 +184,9 @@ model LotteryListing {
   @@index([lastSeenAt])
   @@index([contentHash])
   @@index([priceStatus])
+  @@index([aiIsLotteryApplicationPage])
+  @@index([aiIsCurrentlyOpen])
+  @@index([aiConfidenceScore])
   @@index([estimatedProfit])
   @@index([roi])
   @@index([applicationPriorityScore])

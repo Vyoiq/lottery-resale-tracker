@@ -1,4 +1,4 @@
-import { runOperationTasksAction, runSingleOperationTaskAction, updateOperationSettingsAction } from "@/lib/actions";
+import { cleanupEndedListingsAction, runOperationTasksAction, runSingleOperationTaskAction, updateOperationSettingsAction } from "@/lib/actions";
 import { getOperationSettings } from "@/lib/appSettings";
 import { dateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -92,6 +92,10 @@ export default async function OperationSettingsPage() {
           <TaskButton type="backup" label="バックアップ作成" />
           <TaskButton type="source_discovery" label="ソース自動発見" />
           <TaskButton type="price_source_discovery" label="価格ソース自動発見" />
+          <TaskButton type="ai_classification" label="AI分類" />
+          <form action={cleanupEndedListingsAction}>
+            <button className={secondaryButtonClass} type="submit">終了済みを再判定</button>
+          </form>
         </div>
       </Card>
 

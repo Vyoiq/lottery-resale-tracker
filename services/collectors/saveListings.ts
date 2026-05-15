@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import type { NormalizedListing } from "./normalize";
+import { inferListingStatus } from "@/services/listings/listingStatusService";
 
 export type SaveListingsResult = {
   newListingCount: number;
@@ -37,6 +38,14 @@ export async function saveListings(prisma: PrismaClient, listings: NormalizedLis
       }));
 
     if (existing) {
+      const nextStatus = inferListingStatus({
+        ignored: existing.ignored,
+        applicationEndAt: listing.applicationEndAt ?? null,
+        purchaseDeadlineAt: listing.purchaseDeadlineAt ?? null,
+        resultAnnouncementAt: listing.resultAnnouncementAt ?? null,
+        title: listing.title,
+        rawText: listing.rawText ?? null
+      });
       await prisma.lotteryListing.update({
         where: { id: existing.id },
         data: {
@@ -51,7 +60,7 @@ export async function saveListings(prisma: PrismaClient, listings: NormalizedLis
           applicationEndAt: listing.applicationEndAt,
           resultAnnouncementAt: listing.resultAnnouncementAt,
           purchaseDeadlineAt: listing.purchaseDeadlineAt,
-          status: existing.status === "ignored" ? "ignored" : listing.status,
+          status: nextStatus,
           confidenceScore: listing.confidenceScore,
           matchedKeywords: listing.matchedKeywords,
           confidenceReason: listing.confidenceReason,

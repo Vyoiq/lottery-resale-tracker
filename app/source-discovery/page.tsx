@@ -8,6 +8,7 @@ import {
   createDiscoveryQueryAction,
   ignoreDiscoveredSourceAction,
   runPriceSourceDiscoveryAction,
+  runAiClassificationAction,
   runSourceDiscoveryAction,
   toggleDiscoveryQueryAction
 } from "@/lib/actions";
@@ -70,7 +71,7 @@ export default async function SourceDiscoveryPage({
         ]
       },
       include: { discoveryQuery: { select: { name: true, query: true } } },
-      orderBy: [{ status: "asc" }, { confidenceScore: "desc" }, { discoveredAt: "desc" }],
+      orderBy: [{ status: "asc" }, { aiIsCurrentlyOpen: "desc" }, { aiConfidenceScore: "desc" }, { confidenceScore: "desc" }, { discoveredAt: "desc" }],
       take: 200
     }),
     prisma.watchSource.findMany({ select: { url: true } }),
@@ -90,6 +91,9 @@ export default async function SourceDiscoveryPage({
         </form>
         <form action={runPriceSourceDiscoveryAction}>
           <button className={secondaryButtonClass} type="submit">PriceSource 候補だけ探す</button>
+        </form>
+        <form action={runAiClassificationAction}>
+          <button className={secondaryButtonClass} type="submit">AI分類を実行</button>
         </form>
         <Link href="/sources" className={secondaryButtonClass}>監視ソース管理へ</Link>
         <Link href="/price-sources" className={secondaryButtonClass}>価格ソース管理へ</Link>
@@ -184,7 +188,7 @@ export default async function SourceDiscoveryPage({
             <button className={secondaryButtonClass} formAction={bulkIgnoreDiscoveredSourcesAction} type="submit">選択を無視</button>
           </div>
           <Card className="overflow-x-auto">
-            <table className="w-full min-w-[1440px] text-sm">
+            <table className="w-full min-w-[1620px] text-sm">
               <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">選択</th>
@@ -192,6 +196,7 @@ export default async function SourceDiscoveryPage({
                   <th className="px-4 py-3">種別</th>
                   <th className="px-4 py-3">カテゴリ</th>
                   <th className="px-4 py-3">信頼度</th>
+                  <th className="px-4 py-3">AI判定</th>
                   <th className="px-4 py-3">検索URL推定</th>
                   <th className="px-4 py-3">検索キーワード</th>
                   <th className="px-4 py-3">発見日時</th>
@@ -219,6 +224,25 @@ export default async function SourceDiscoveryPage({
                       <td className="px-4 py-3"><TypeBadge type={source.detectedType} /></td>
                       <td className="px-4 py-3">{categoryLabels[source.category] ?? source.category}</td>
                       <td className="px-4 py-3 tabular-nums">{source.confidenceScore.toFixed(2)}</td>
+                      <td className="max-w-sm px-4 py-3">
+                        {source.aiClassifiedAt ? (
+                          <div className="grid gap-1 text-xs">
+                            <div className="flex flex-wrap gap-1">
+                              <Badge tone={source.aiIsLotteryApplicationPage ? "success" : "neutral"}>
+                                {source.aiIsLotteryApplicationPage ? "抽選応募ページ" : "抽選応募ページではない"}
+                              </Badge>
+                              <Badge tone={source.aiIsCurrentlyOpen ? "success" : source.aiIsPastOrEnded ? "danger" : "warning"}>
+                                {source.aiIsCurrentlyOpen ? "受付中" : source.aiIsPastOrEnded ? "終了候補" : "受付不明"}
+                              </Badge>
+                            </div>
+                            <div className="tabular-nums text-muted-foreground">AI {source.aiConfidenceScore?.toFixed(2) ?? "-"}</div>
+                            <div className="text-muted-foreground">{source.aiReason ?? "-"}</div>
+                            {source.aiExcludeReason ? <div className="text-rose-700">{source.aiExcludeReason}</div> : null}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">未分類</span>
+                        )}
+                      </td>
                       <td className="max-w-sm px-4 py-3">
                         {source.searchUrlTemplateCandidate ? (
                           <div className="break-all text-xs">{source.searchUrlTemplateCandidate}</div>

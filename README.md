@@ -118,7 +118,9 @@ npm run collect:prices -- --dry-run
 npm run notifications
 npm run discover:sources
 npm run discover:prices
+npm run classify:ai
 npm run cleanup:placeholders
+npm run cleanup:ended
 npm run backup
 npm run operate
 npx prisma migrate dev
@@ -684,3 +686,48 @@ SERPAPI_API_KEY=
 6. 普段は `/simple` を見る
 
 `/simple` で「有効な価格ソースがありません」と出る場合は、PriceSource Discovery を実行し、`/source-discovery` で候補を確認してから `/price-sources` で使うソースを有効化してください。
+
+## AI分類
+
+Source Discovery や collect で拾った候補は、OpenAI API を使って追加分類できます。AI分類は記事、過去告知、通常販売ページ、買取価格ページを分け、現在応募できる抽選応募ページを `/source-discovery` と `/simple` で優先しやすくする補助機能です。
+
+`.env` には必要に応じて以下を設定します。
+
+```env
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+```
+
+APIキーが未設定でもアプリは停止しません。`npm run operate` や `npm run classify:ai` では「OPENAI_API_KEY 未設定のためAI分類をスキップ」と OperationRun に記録して終了します。
+
+```bash
+npm run classify:ai
+```
+
+確認場所:
+- `/source-discovery` で AI の抽選応募ページ判定、受付中判定、理由、除外理由を確認
+- `/settings/operations` の `AI分類` ボタンで手動実行
+- `/simple` は AI が「抽選応募ページ」「受付中」「ポケカ/トレカ系」と判定した候補を優先し、AI が明確に除外した候補は通常表示から外す
+
+注意:
+- AI分類は最終判断の補助です。応募前に必ず元ページの期間、価格、利用規約を確認してください。
+- 自動応募、自動購入、ログイン自動化、CAPTCHA回避は行いません。
+- 分類対象はログイン不要で閲覧できる公開ページだけです。
+
+## 終了済み抽選の整理
+
+`collect` 実行時と `operate` 実行時には、既存の `LotteryListing` も含めて終了判定を再計算します。
+
+- `applicationEndAt` が現在より前なら `ended`
+- `applicationEndAt` が未来なら `active`
+- `applicationEndAt` がなく、`purchaseDeadlineAt` が過去なら `ended`
+- `resultAnnouncementAt` がかなり過去、またはタイトル/本文に `終了`、`受付終了`、`応募終了`、`販売終了` がある場合も `ended`
+- 判定材料が足りない場合は `unknown`
+
+手動で再判定したい場合:
+
+```bash
+npm run cleanup:ended
+```
+
+または `/settings/operations` の `終了済みを再判定` を使ってください。`/simple` は通常、受付中の抽選だけを表示します。過去分を確認したい場合だけ `終了済みも表示` を ON にしてください。

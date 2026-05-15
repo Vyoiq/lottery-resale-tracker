@@ -9,8 +9,10 @@ import { runPriceCollectors } from "@/services/priceCollectors/base";
 import { runPriceSourceDiscovery, runSourceDiscovery } from "@/services/sourceDiscovery/discoveryRunner";
 import { cleanupPlaceholderSources } from "@/services/sources/placeholderCleanup";
 import { operationFailureMessage } from "@/lib/errorMessages";
+import { refreshListingStatuses } from "@/services/listings/listingStatusService";
+import { runAiClassification } from "@/services/aiClassification/runAiClassification";
 
-export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "price_source_discovery", "full_run"] as const;
+export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "price_source_discovery", "ai_classification", "cleanup_ended", "full_run"] as const;
 export type OperationRunType = (typeof operationRunTypes)[number];
 
 export type OperationStepResult = {
@@ -84,6 +86,8 @@ export async function runFullOperation(client: PrismaClient = defaultPrisma): Pr
   if (settings.collectEnabled) steps.push(await runOperationTask("collect", client));
   else steps.push({ type: "collect", success: true, message: "設定によりスキップ" });
 
+  steps.push(await runOperationTask("ai_classification", client));
+
   if (settings.priceCollectEnabled) steps.push(await runOperationTask("price_collect", client));
   else steps.push({ type: "price_collect", success: true, message: "設定によりスキップ" });
 
@@ -116,6 +120,8 @@ export function operationTypeLabel(type: string) {
     backup: "バックアップ",
     source_discovery: "ソース自動発見",
     price_source_discovery: "価格ソース自動発見",
+    ai_classification: "AI分類",
+    cleanup_ended: "終了済み再判定",
     restore_backup: "バックアップ復元",
     full_run: "一括実行"
   }[type] ?? type;
@@ -133,11 +139,12 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
 
   if (type === "collect") {
     const result = await runCollectors();
+    const statuses = await refreshListingStatuses(client);
     await recalculateAllListingPriorities(client);
     const details = result.errorMessage ? `\n\nエラー詳細:\n${result.errorMessage}` : "";
     return {
       success: result.errorCount === 0,
-      message: `${cleanupPrefix}新規 ${result.newListingCount} 件、更新 ${result.updatedListingCount} 件、スキップ ${result.skippedCount} 件、エラー ${result.errorCount} 件${details}`
+      message: `${cleanupPrefix}新規 ${result.newListingCount} 件、更新 ${result.updatedListingCount} 件、スキップ ${result.skippedCount} 件、エラー ${result.errorCount} 件\nstatus再判定 ${statuses.checkedCount} 件 / 更新 ${statuses.updatedCount} 件 / active ${statuses.activeCount} 件 / ended ${statuses.endedCount} 件 / unknown ${statuses.unknownCount} 件${details}`
     };
   }
 
@@ -176,6 +183,30 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
     return {
       success: result.errorCount === 0,
       message: `価格検索キーワード ${result.queryCount} 件、発見 ${result.foundCount} 件、新規 ${result.newCount} 件、更新 ${result.updatedCount} 件、PriceSource自動追加 ${result.autoAddedPriceCount} 件、エラー ${result.errorCount} 件${providerNotes}${details}`
+    };
+  }
+
+  if (type === "ai_classification") {
+    const result = await runAiClassification(client);
+    if (result.skipped) {
+      return {
+        success: true,
+        message: "OPENAI_API_KEY 未設定のためAI分類をスキップ"
+      };
+    }
+    const details = result.errorMessage ? `\n\nエラー詳細:\n${result.errorMessage}` : "";
+    return {
+      success: result.errorCount === 0,
+      message: `DiscoveredSource ${result.discoveredClassifiedCount}/${result.discoveredTargetCount} 件、LotteryListing ${result.listingClassifiedCount}/${result.listingTargetCount} 件を分類、エラー ${result.errorCount} 件${details}`
+    };
+  }
+
+  if (type === "cleanup_ended") {
+    const result = await refreshListingStatuses(client);
+    await recalculateAllListingPriorities(client);
+    return {
+      success: true,
+      message: `再判定 ${result.checkedCount} 件 / 更新 ${result.updatedCount} 件 / active ${result.activeCount} 件 / ended ${result.endedCount} 件 / unknown ${result.unknownCount} 件 / ignored ${result.ignoredCount} 件`
     };
   }
 

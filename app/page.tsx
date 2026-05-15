@@ -93,13 +93,13 @@ export default async function DashboardPage() {
     }),
     prisma.lotteryListing.count({ where: { applicationStatus: "purchased" } }),
     prisma.lotteryListing.findMany({
-      where: { ignored: false, estimatedProfit: { not: null } },
+      where: { ignored: false, status: "active", applicationEndAt: { gte: now }, estimatedProfit: { not: null } },
       include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } },
       orderBy: { estimatedProfit: "desc" },
       take: 8
     }),
     prisma.lotteryListing.findMany({
-      where: { ignored: false, roi: { not: null } },
+      where: { ignored: false, status: "active", applicationEndAt: { gte: now }, roi: { not: null } },
       include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } },
       orderBy: { roi: "desc" },
       take: 8

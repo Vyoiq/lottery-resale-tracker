@@ -3,6 +3,7 @@ import { ignoreLotteryListing, runPriceCheckForListingAction, setApplicationMile
 import { applicationStatusLabels, dateOnly, multiple, percent, priceStatusLabels, yen } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
+import { placeholderSourceReason } from "@/lib/sourceGuards";
 import { Badge, buttonClass, Card, EmptyState, inputClass, PageHeader, secondaryButtonClass, smallButtonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ function boolParam(searchParams: SearchParams, key: string, defaultValue: boolea
 
 async function getSimpleListings(searchParams: SearchParams) {
   const now = new Date();
-  const activeOnly = boolParam(searchParams, "activeOnly", true);
+  const showEnded = boolParam(searchParams, "showEnded", false);
   const profitOnly = boolParam(searchParams, "profitOnly", true);
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
   const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
@@ -33,7 +34,19 @@ async function getSimpleListings(searchParams: SearchParams) {
     where: {
       AND: [
         hideIgnored ? { ignored: false } : {},
-        activeOnly ? { status: "active", OR: [{ applicationEndAt: null }, { applicationEndAt: { gte: now } }] } : {},
+        showEnded ? {} : { status: "active", applicationEndAt: { gte: now } },
+        {
+          OR: [
+            { aiClassifiedAt: null },
+            {
+              aiIsLotteryApplicationPage: true,
+              aiIsCurrentlyOpen: true,
+              aiIsPastOrEnded: false,
+              aiIsJustArticle: false,
+              aiCategory: { in: ["pokemon_card", "trading_card"] }
+            }
+          ]
+        },
         profitOnly ? { estimatedProfit: { gt: 0 } } : {},
         priorityOnly ? { applicationPriorityLabel: { in: ["S", "A", "B"] } } : {},
         priceFoundOnly ? { priceStatus: "found", bestBuyPrice: { not: null } } : {},
@@ -53,7 +66,9 @@ async function getSimpleListings(searchParams: SearchParams) {
     take: 300
   });
 
-  return listings.sort((a, b) => {
+  return listings
+    .filter((listing) => !placeholderSourceReason({ name: listing.sourceName, url: listing.sourceUrl }))
+    .sort((a, b) => {
     const aConfidence = a.priceRecords[0]?.confidenceScore ?? 0;
     const bConfidence = b.priceRecords[0]?.confidenceScore ?? 0;
     const aActive = isAccepting(a, now) ? 1 : 0;
@@ -62,6 +77,10 @@ async function getSimpleListings(searchParams: SearchParams) {
     const bProfit = (b.estimatedProfit ?? 0) > 0 ? 1 : 0;
     const aPokemon = isPokemonCardListing(a) ? 1 : 0;
     const bPokemon = isPokemonCardListing(b) ? 1 : 0;
+    const aAiPreferred = isAiPreferredListing(a) ? 1 : 0;
+    const bAiPreferred = isAiPreferredListing(b) ? 1 : 0;
+    const aAiConfidence = a.aiConfidenceScore ?? 0;
+    const bAiConfidence = b.aiConfidenceScore ?? 0;
     const aPriceFound = a.priceStatus === "found" ? 1 : 0;
     const bPriceFound = b.priceStatus === "found" ? 1 : 0;
     const aPriorityRank = priorityRank(a.applicationPriorityLabel);
@@ -70,6 +89,7 @@ async function getSimpleListings(searchParams: SearchParams) {
     const bDeadline = b.applicationEndAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
 
     return (
+      bAiPreferred - aAiPreferred ||
       bPokemon - aPokemon ||
       bActive - aActive ||
       bProfit - aProfit ||
@@ -78,13 +98,14 @@ async function getSimpleListings(searchParams: SearchParams) {
       aDeadline - bDeadline ||
       (b.roi ?? -Infinity) - (a.roi ?? -Infinity) ||
       bConfidence - aConfidence ||
+      bAiConfidence - aAiConfidence ||
       b.applicationPriorityScore - a.applicationPriorityScore
     );
-  });
+    });
 }
 
 export default async function SimplePage({ searchParams }: { searchParams: SearchParams }) {
-  const activeOnly = boolParam(searchParams, "activeOnly", true);
+  const showEnded = boolParam(searchParams, "showEnded", false);
   const profitOnly = boolParam(searchParams, "profitOnly", true);
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
   const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
@@ -129,7 +150,7 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
 
       <Card className="mb-5 p-4">
         <form className="grid gap-3 md:grid-cols-5">
-          <FilterSelect label="応募受付中のみ" name="activeOnly" value={activeOnly} />
+          <FilterSelect label="終了済みも表示" name="showEnded" value={showEnded} />
           <FilterSelect label="利益ありのみ" name="profitOnly" value={profitOnly} />
           <FilterSelect label="S/Aランクのみ" name="priorityOnly" value={priorityOnly} />
           <FilterSelect label="価格取得済みのみ" name="priceFoundOnly" value={priceFoundOnly} />
@@ -171,6 +192,11 @@ function SimpleListingCard({ listing }: { listing: SimpleListing }) {
             <Badge tone={accepting ? "success" : "neutral"}>{accepting ? "受付中" : "受付外"}</Badge>
             {profitPositive ? <Badge tone="success">利益あり</Badge> : <Badge tone="warning">利益要確認</Badge>}
             {listing.ignored ? <Badge tone="danger">無視中</Badge> : null}
+            {listing.aiClassifiedAt ? (
+              <Badge tone={isAiPreferredListing(listing) ? "success" : "warning"}>
+                AI {listing.aiConfidenceScore?.toFixed(2) ?? "-"}
+              </Badge>
+            ) : null}
           </div>
           <Link href={`/lotteries/${listing.id}`} className="text-base font-semibold leading-7 hover:text-primary">
             {listing.productName}
@@ -275,6 +301,22 @@ function isAccepting(listing: { status: string; applicationEndAt: Date | null },
 function isPokemonCardListing(listing: { productName: string; title: string; description: string | null; rawText: string | null }) {
   const text = `${listing.productName} ${listing.title} ${listing.description ?? ""} ${listing.rawText ?? ""}`.toLowerCase();
   return ["ポケモンカード", "ポケカ", "pokemon", "スペシャルbox", "拡張パック"].some((keyword) => text.includes(keyword.toLowerCase()));
+}
+
+function isAiPreferredListing(listing: {
+  aiIsLotteryApplicationPage: boolean | null;
+  aiIsCurrentlyOpen: boolean | null;
+  aiIsPastOrEnded: boolean | null;
+  aiIsJustArticle: boolean | null;
+  aiCategory: string | null;
+}) {
+  return (
+    listing.aiIsLotteryApplicationPage === true &&
+    listing.aiIsCurrentlyOpen === true &&
+    listing.aiIsPastOrEnded === false &&
+    listing.aiIsJustArticle === false &&
+    (listing.aiCategory === "pokemon_card" || listing.aiCategory === "trading_card")
+  );
 }
 
 function priorityRank(label: string) {

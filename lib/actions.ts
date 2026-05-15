@@ -563,12 +563,30 @@ export async function runSourceDiscoveryAction() {
   revalidatePath("/operation-runs");
 }
 
+export async function cleanupEndedListingsAction() {
+  await runOperationTask("cleanup_ended");
+  revalidatePath("/");
+  revalidatePath("/simple");
+  revalidatePath("/lotteries");
+  revalidatePath("/operation-runs");
+  revalidatePath("/settings/operations");
+}
+
 export async function runPriceSourceDiscoveryAction() {
   await runOperationTask("price_source_discovery");
   revalidatePath("/");
   revalidatePath("/simple");
   revalidatePath("/source-discovery");
   revalidatePath("/price-sources");
+  revalidatePath("/operation-runs");
+}
+
+export async function runAiClassificationAction() {
+  await runOperationTask("ai_classification");
+  revalidatePath("/");
+  revalidatePath("/simple");
+  revalidatePath("/source-discovery");
+  revalidatePath("/lotteries");
   revalidatePath("/operation-runs");
 }
 

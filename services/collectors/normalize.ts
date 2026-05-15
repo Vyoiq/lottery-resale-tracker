@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { confidenceReason, keywordScore } from "./keywordExtractor";
 import { extractListingDates } from "./dateExtractor";
+import { inferListingStatus } from "@/services/listings/listingStatusService";
 
 export type RawListingCandidate = {
   title: string;
@@ -69,11 +70,6 @@ export function inferProductName(title: string) {
   return normalizeWhitespace(cleaned).slice(0, 120) || normalizeWhitespace(title).slice(0, 120);
 }
 
-export function listingStatus(applicationEndAt?: Date | null) {
-  if (!applicationEndAt) return "unknown";
-  return applicationEndAt.getTime() >= Date.now() ? "active" : "ended";
-}
-
 export function normalizeCandidate(input: {
   candidate: RawListingCandidate;
   sourceName: string;
@@ -99,7 +95,14 @@ export function normalizeCandidate(input: {
     applicationEndAt: dates.applicationEndAt,
     resultAnnouncementAt: dates.resultAnnouncementAt,
     purchaseDeadlineAt: dates.purchaseDeadlineAt,
-    status: listingStatus(dates.applicationEndAt),
+    status: inferListingStatus({
+      ignored: false,
+      applicationEndAt: dates.applicationEndAt,
+      purchaseDeadlineAt: dates.purchaseDeadlineAt,
+      resultAnnouncementAt: dates.resultAnnouncementAt,
+      title: input.candidate.title,
+      rawText: text
+    }),
     confidenceScore: keywordResult.score,
     matchedKeywords: keywordResult.matched.join(", "),
     confidenceReason: confidenceReason(text),

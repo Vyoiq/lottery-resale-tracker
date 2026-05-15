@@ -1,0 +1,67 @@
+import type { DiscoveredSource, PrismaClient } from "@prisma/client";
+import { prisma as defaultPrisma } from "@/lib/prisma";
+import { stripTags } from "@/services/collectors/htmlCollector";
+import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { discoveredSourceUserPrompt } from "./prompts";
+import { getOpenAiModel, requestAiClassification } from "./openAiClient";
+
+export async function classifyDiscoveredSource(source: DiscoveredSource, client: PrismaClient = defaultPrisma) {
+  const rawText = source.rawText ?? (await fetchPublicPageText(source));
+  const result = await requestAiClassification(
+    discoveredSourceUserPrompt({
+      url: source.url,
+      title: source.title,
+      description: source.description,
+      rawText,
+      matchedKeywords: source.matchedKeywords,
+      detectedType: source.detectedType,
+      discoveredAt: source.discoveredAt
+    })
+  );
+
+  await client.discoveredSource.update({
+    where: { id: source.id },
+    data: {
+      rawText,
+      aiClassifiedAt: new Date(),
+      aiModel: getOpenAiModel(),
+      aiIsLotteryApplicationPage: result.isLotteryApplicationPage,
+      aiIsCurrentlyOpen: result.isCurrentlyOpen,
+      aiIsPastOrEnded: result.isPastOrEnded,
+      aiIsJustArticle: result.isJustArticle,
+      aiIsProductSalesPage: result.isProductSalesPage,
+      aiIsPriceBuybackPage: result.isPriceBuybackPage,
+      aiCategory: result.category,
+      aiConfidenceScore: result.confidenceScore,
+      aiApplicationStartAt: parseNullableDate(result.applicationStartAt),
+      aiApplicationEndAt: parseNullableDate(result.applicationEndAt),
+      aiResultAnnouncementAt: parseNullableDate(result.resultAnnouncementAt),
+      aiPurchaseDeadlineAt: parseNullableDate(result.purchaseDeadlineAt),
+      aiReason: result.reason,
+      aiExcludeReason: result.excludeReason
+    }
+  });
+
+  return result;
+}
+
+async function fetchPublicPageText(source: DiscoveredSource) {
+  if (placeholderSourceReason({ name: source.title, url: source.url, memo: source.description })) {
+    return source.description ?? "";
+  }
+  const response = await fetch(source.url, {
+    headers: {
+      "User-Agent": "LotteryResaleTracker/1.1 (+local personal tracker; public pages only)",
+      Accept: "text/html,application/xhtml+xml,text/plain"
+    },
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  return stripTags(await response.text()).replace(/\s+/g, " ").trim().slice(0, 3000);
+}
+
+function parseNullableDate(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
