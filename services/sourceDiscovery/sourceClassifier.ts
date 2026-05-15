@@ -1,4 +1,5 @@
 import type { DiscoveryQuery } from "@prisma/client";
+import { placeholderSourceReason } from "@/lib/sourceGuards";
 import { hostName, normalizeDiscoveredUrl } from "./queryBuilder";
 
 const watchKeywords = [
@@ -64,7 +65,7 @@ export function classifySourceCandidate(input: {
   const haystack = `${input.title} ${input.description ?? ""} ${normalizedUrl}`.toLowerCase();
 
   if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) return null;
-  if (haystack.includes("example.com")) return null;
+  if (placeholderSourceReason({ name: input.title, url: normalizedUrl, memo: input.description })) return null;
 
   const matchedExclusions = exclusionKeywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));
   const matchedWatch = watchKeywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));

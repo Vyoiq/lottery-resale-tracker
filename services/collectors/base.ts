@@ -1,5 +1,6 @@
 import type { WatchSource } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { placeholderSourceReason } from "@/lib/sourceGuards";
 import { collectHtml } from "./htmlCollector";
 import { collectRss } from "./rssCollector";
 import { saveListings } from "./saveListings";
@@ -56,6 +57,64 @@ export async function runCollectors(options: RunCollectorsOptions = {}) {
 
   for (const source of sources) {
     const startedAt = new Date();
+    const placeholderReason = placeholderSourceReason(source);
+    if (placeholderReason) {
+      const message = `プレースホルダーのためスキップ: ${placeholderReason}`;
+      skippedCount += 1;
+
+      if (!options.dryRun && run) {
+        await prisma.collectorRunItem.create({
+          data: {
+            collectorRunId: run.id,
+            watchSourceId: source.id,
+            sourceName: source.name,
+            storeName: source.storeName,
+            sourceUrl: source.url,
+            type: source.type,
+            startedAt,
+            finishedAt: new Date(),
+            success: true,
+            httpStatus: null,
+            fetchedCount: 0,
+            matchedKeywords: "placeholder",
+            newListingCount: 0,
+            updatedListingCount: 0,
+            skippedCount: 1,
+            errorMessage: message
+          }
+        });
+        await prisma.watchSource.update({
+          where: { id: source.id },
+          data: {
+            enabled: false,
+            lastCheckedAt: new Date(),
+            lastSuccess: true,
+            lastHttpStatus: null,
+            lastFetchedCount: 0,
+            lastNewListingCount: 0,
+            lastMatchedKeywords: null,
+            lastError: message.slice(0, 500)
+          }
+        });
+      }
+
+      items.push({
+        sourceName: source.name,
+        storeName: source.storeName,
+        sourceUrl: source.url,
+        type: source.type,
+        success: true,
+        httpStatus: null,
+        fetchedCount: 0,
+        matchedKeywords: ["placeholder"],
+        newListingCount: 0,
+        updatedListingCount: 0,
+        skippedCount: 1,
+        errorMessage: message
+      });
+      continue;
+    }
+
     try {
       const result = await collectSource(source);
       const saveResult = options.dryRun

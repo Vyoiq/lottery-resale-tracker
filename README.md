@@ -117,6 +117,7 @@ npm run collect:prices
 npm run collect:prices -- --dry-run
 npm run notifications
 npm run discover:sources
+npm run cleanup:placeholders
 npm run backup
 npm run operate
 npx prisma migrate dev
@@ -212,6 +213,20 @@ https://example.com/search?q={keyword}
 - WatchSource / PriceSource に追加しても、必ず `enabled: false` です。
 - 実際に巡回する前に `/sources` または `/price-sources` でURL、利用規約、ログイン不要で閲覧できること、アクセス頻度を確認してください。
 - 自動応募、自動購入、ログイン自動化、CAPTCHA回避は実装していません。
+
+## プレースホルダーURLの扱い
+
+`example.com`、`placeholder`、`サンプル`、`プレースホルダー`、`要差し替え`、`要確認` を含む WatchSource / PriceSource はプレースホルダーとして扱います。
+
+- プレースホルダーURLは `npm run collect`、`npm run collect:prices`、`npm run operate` でHTTPアクセスしません。
+- 実行時に見つかったプレースホルダーはスキップし、ログに「プレースホルダーのためスキップ」と理由を残します。
+- `/sources` と `/price-sources` では、プレースホルダーを `enabled: true` にできません。
+- 既に有効になっているプレースホルダーは `npm run cleanup:placeholders` で `enabled: false` に戻せます。
+- `/health` では、プレースホルダー件数と、有効化された危険なプレースホルダー件数を確認できます。
+
+実際に使うURLだけ、人間が公開ページ・利用規約・アクセス頻度を確認してから `/sources` または `/price-sources` で `enabled: true` にしてください。
+
+普段の応募判断は `/simple` を見る運用を推奨します。`/simple` はポケモンカード系、受付中、利益あり、価格取得済み、未無視、S/A/B優先で並べ、Snow Man、Blu-ray、DVD、CD、アナログレコード、ファイナルファンタジー、ゴールドポイント、ゲームソフト、映像作品、音楽作品などのノイズを下げます。
 
 半自動モードは `/settings/operations` の「ソース自動発見モード」で選べます。
 

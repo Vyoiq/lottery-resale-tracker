@@ -10,8 +10,9 @@ import { prisma } from "@/lib/prisma";
 import { recalculateAllListingPriorities, recalculateListingPriority } from "@/lib/priorityService";
 import { calculateActualSaleMetrics } from "@/lib/salesCalculations";
 import { runFullOperation, runOperationTask, operationRunTypes } from "@/services/operations/operationRunner";
-import { isPlaceholderPriceSource } from "@/lib/sourceGuards";
+import { isPlaceholderPriceSource, placeholderSourceReason } from "@/lib/sourceGuards";
 import { addDiscoveredSourceAsPriceSource, addDiscoveredSourceAsWatchSource, ignoreDiscoveredSource } from "@/services/sourceDiscovery/discoveryRunner";
+import { cleanupPlaceholderSources } from "@/services/sources/placeholderCleanup";
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -30,17 +31,22 @@ function optionalInt(formData: FormData, key: string) {
 }
 
 export async function createWatchSource(formData: FormData) {
+  const data = {
+    name: str(formData, "name"),
+    storeName: str(formData, "storeName"),
+    url: str(formData, "url"),
+    type: str(formData, "type") || "html",
+    memo: optionalStr(formData, "memo")
+  };
+  const placeholder = placeholderSourceReason(data);
   await prisma.watchSource.create({
     data: {
-      name: str(formData, "name"),
-      storeName: str(formData, "storeName"),
-      url: str(formData, "url"),
-      type: str(formData, "type") || "html",
-      enabled: formData.get("enabled") === "on",
-      memo: optionalStr(formData, "memo")
+      ...data,
+      enabled: !placeholder && formData.get("enabled") === "on"
     }
   });
   revalidatePath("/sources");
+  revalidatePath("/health");
   redirect("/sources");
 }
 
@@ -171,27 +177,46 @@ export async function toggleDiscoveryQueryAction(formData: FormData) {
 
 export async function updateWatchSource(formData: FormData) {
   const id = str(formData, "id");
+  const data = {
+    name: str(formData, "name"),
+    storeName: str(formData, "storeName"),
+    url: str(formData, "url"),
+    type: str(formData, "type") || "html",
+    memo: optionalStr(formData, "memo")
+  };
+  const placeholder = placeholderSourceReason(data);
   await prisma.watchSource.update({
     where: { id },
     data: {
-      name: str(formData, "name"),
-      storeName: str(formData, "storeName"),
-      url: str(formData, "url"),
-      type: str(formData, "type") || "html",
-      enabled: formData.get("enabled") === "on",
-      memo: optionalStr(formData, "memo")
+      ...data,
+      enabled: !placeholder && formData.get("enabled") === "on"
     }
   });
   revalidatePath("/sources");
+  revalidatePath("/health");
   redirect("/sources");
 }
 
 export async function toggleWatchSource(formData: FormData) {
+  const id = str(formData, "id");
+  const enabled = str(formData, "enabled") === "true";
+  const source = await prisma.watchSource.findUnique({ where: { id } });
+  if (!source) return;
+  if (enabled && placeholderSourceReason(source)) {
+    await prisma.watchSource.update({
+      where: { id },
+      data: { enabled: false, lastError: "プレースホルダーのため有効化できません。" }
+    });
+    revalidatePath("/sources");
+    revalidatePath("/health");
+    return;
+  }
   await prisma.watchSource.update({
-    where: { id: str(formData, "id") },
-    data: { enabled: str(formData, "enabled") === "true" }
+    where: { id },
+    data: { enabled }
   });
   revalidatePath("/sources");
+  revalidatePath("/health");
 }
 
 export async function ignoreLotteryListing(formData: FormData) {
@@ -338,15 +363,18 @@ export async function runCollectorsAction() {
 export async function createPriceSource(formData: FormData) {
   const baseUrl = str(formData, "baseUrl");
   const searchUrlTemplate = str(formData, "searchUrlTemplate");
-  const placeholder = isPlaceholderPriceSource({ baseUrl, searchUrlTemplate });
+  const sourceData = {
+    name: str(formData, "name"),
+    shopName: str(formData, "shopName"),
+    baseUrl,
+    searchUrlTemplate,
+    memo: optionalStr(formData, "memo")
+  };
+  const placeholder = isPlaceholderPriceSource(sourceData);
   await prisma.priceSource.create({
     data: {
-      name: str(formData, "name"),
-      shopName: str(formData, "shopName"),
-      baseUrl,
-      searchUrlTemplate,
+      ...sourceData,
       enabled: !placeholder && formData.get("enabled") === "on",
-      memo: optionalStr(formData, "memo")
     }
   });
   revalidatePath("/price-sources");
@@ -358,7 +386,6 @@ export async function togglePriceSource(formData: FormData) {
   const enabled = str(formData, "enabled") === "true";
   const source = await prisma.priceSource.findUnique({
     where: { id },
-    select: { baseUrl: true, searchUrlTemplate: true }
   });
   if (!source) return;
   if (enabled && isPlaceholderPriceSource(source)) {
@@ -516,6 +543,15 @@ export async function updateOperationSettingsAction(formData: FormData) {
 export async function runOperationTasksAction() {
   await runFullOperation();
   revalidateOperationViews();
+}
+
+export async function cleanupPlaceholderSourcesAction() {
+  await cleanupPlaceholderSources();
+  revalidatePath("/");
+  revalidatePath("/sources");
+  revalidatePath("/price-sources");
+  revalidatePath("/health");
+  revalidatePath("/operation-runs");
 }
 
 export async function runSourceDiscoveryAction() {

@@ -25,8 +25,9 @@ async function getSimpleListings(searchParams: SearchParams) {
   const activeOnly = boolParam(searchParams, "activeOnly", true);
   const profitOnly = boolParam(searchParams, "profitOnly", true);
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
-  const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", false);
+  const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
   const hideIgnored = boolParam(searchParams, "hideIgnored", true);
+  const noiseKeywords = ["Snow Man", "Blu-ray", "DVD", "CD", "アナログレコード", "ファイナルファンタジー", "ゴールドポイント", "ゲームソフト", "映像作品", "音楽作品"];
 
   const listings = await prisma.lotteryListing.findMany({
     where: {
@@ -34,8 +35,18 @@ async function getSimpleListings(searchParams: SearchParams) {
         hideIgnored ? { ignored: false } : {},
         activeOnly ? { status: "active", OR: [{ applicationEndAt: null }, { applicationEndAt: { gte: now } }] } : {},
         profitOnly ? { estimatedProfit: { gt: 0 } } : {},
-        priorityOnly ? { applicationPriorityLabel: { in: ["S", "A"] } } : {},
-        priceFoundOnly ? { priceStatus: "found", bestBuyPrice: { not: null } } : {}
+        priorityOnly ? { applicationPriorityLabel: { in: ["S", "A", "B"] } } : {},
+        priceFoundOnly ? { priceStatus: "found", bestBuyPrice: { not: null } } : {},
+        ...noiseKeywords.map((keyword) => ({
+          NOT: {
+            OR: [
+              { productName: { contains: keyword } },
+              { title: { contains: keyword } },
+              { description: { contains: keyword } },
+              { rawText: { contains: keyword } }
+            ]
+          }
+        }))
       ]
     },
     include: { priceRecords: { orderBy: [{ price: "desc" }, { confidenceScore: "desc" }], take: 1 } },
@@ -49,12 +60,21 @@ async function getSimpleListings(searchParams: SearchParams) {
     const bActive = isAccepting(b, now) ? 1 : 0;
     const aProfit = (a.estimatedProfit ?? 0) > 0 ? 1 : 0;
     const bProfit = (b.estimatedProfit ?? 0) > 0 ? 1 : 0;
+    const aPokemon = isPokemonCardListing(a) ? 1 : 0;
+    const bPokemon = isPokemonCardListing(b) ? 1 : 0;
+    const aPriceFound = a.priceStatus === "found" ? 1 : 0;
+    const bPriceFound = b.priceStatus === "found" ? 1 : 0;
+    const aPriorityRank = priorityRank(a.applicationPriorityLabel);
+    const bPriorityRank = priorityRank(b.applicationPriorityLabel);
     const aDeadline = a.applicationEndAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
     const bDeadline = b.applicationEndAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
 
     return (
+      bPokemon - aPokemon ||
       bActive - aActive ||
       bProfit - aProfit ||
+      bPriceFound - aPriceFound ||
+      bPriorityRank - aPriorityRank ||
       aDeadline - bDeadline ||
       (b.roi ?? -Infinity) - (a.roi ?? -Infinity) ||
       bConfidence - aConfidence ||
@@ -67,7 +87,7 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
   const activeOnly = boolParam(searchParams, "activeOnly", true);
   const profitOnly = boolParam(searchParams, "profitOnly", true);
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
-  const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", false);
+  const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
   const hideIgnored = boolParam(searchParams, "hideIgnored", true);
   const listings = await getSimpleListings(searchParams);
 
@@ -237,6 +257,15 @@ function confidenceLabel(score: number, priceStatus: string) {
 
 function isAccepting(listing: { status: string; applicationEndAt: Date | null }, now: Date) {
   return listing.status === "active" && (!listing.applicationEndAt || listing.applicationEndAt.getTime() >= now.getTime());
+}
+
+function isPokemonCardListing(listing: { productName: string; title: string; description: string | null; rawText: string | null }) {
+  const text = `${listing.productName} ${listing.title} ${listing.description ?? ""} ${listing.rawText ?? ""}`.toLowerCase();
+  return ["ポケモンカード", "ポケカ", "pokemon", "スペシャルbox", "拡張パック"].some((keyword) => text.includes(keyword.toLowerCase()));
+}
+
+function priorityRank(label: string) {
+  return { S: 5, A: 4, B: 3, C: 2, D: 1 }[label] ?? 0;
 }
 
 function compactUrl(value: string) {

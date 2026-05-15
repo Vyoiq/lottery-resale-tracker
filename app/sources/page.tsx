@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { createWatchSource, toggleWatchSource } from "@/lib/actions";
+import { cleanupPlaceholderSourcesAction, createWatchSource, toggleWatchSource } from "@/lib/actions";
 import { sourceTypes } from "@/lib/domain";
 import { prisma } from "@/lib/prisma";
 import { dateTime, sourceTypeLabels } from "@/lib/format";
+import { placeholderSourceReason, placeholderWarningMessage } from "@/lib/sourceGuards";
 import { Badge, buttonClass, Card, EmptyState, Field, inputClass, PageHeader, secondaryButtonClass, textareaClass } from "@/components/ui";
 
 export default async function SourcesPage() {
@@ -10,31 +11,25 @@ export default async function SourcesPage() {
 
   return (
     <>
-      <PageHeader title="監視ソース" description="ログイン不要で閲覧できる公開HTML/RSSだけを低頻度で巡回します。" />
-      <div className="mb-4 flex justify-end">
+      <PageHeader title="監視ソース" description="ログイン不要で閲覧できる公開HTML/RSSだけを低頻度で巡回します。プレースホルダーURLは有効化できません。">
         <Link href="/sources/presets" className={secondaryButtonClass}>プリセットから追加</Link>
-      </div>
+        <form action={cleanupPlaceholderSourcesAction}>
+          <button className={secondaryButtonClass} type="submit">プレースホルダーを無効化</button>
+        </form>
+      </PageHeader>
 
       <Card className="mb-6 p-4">
         <form action={createWatchSource} className="grid gap-4 md:grid-cols-4">
-          <Field label="ソース名">
-            <input className={inputClass} name="name" required />
-          </Field>
-          <Field label="店舗名">
-            <input className={inputClass} name="storeName" required />
-          </Field>
-          <Field label="URL">
-            <input className={inputClass} name="url" type="url" required />
-          </Field>
+          <Field label="ソース名"><input className={inputClass} name="name" required /></Field>
+          <Field label="店舗名"><input className={inputClass} name="storeName" required /></Field>
+          <Field label="URL"><input className={inputClass} name="url" type="url" required /></Field>
           <Field label="種別">
             <select className={inputClass} name="type" defaultValue="html">
               {sourceTypes.map((type) => <option key={type} value={type}>{sourceTypeLabels[type]}</option>)}
             </select>
           </Field>
           <div className="md:col-span-3">
-            <Field label="メモ">
-              <textarea className={textareaClass} name="memo" />
-            </Field>
+            <Field label="メモ"><textarea className={textareaClass} name="memo" /></Field>
           </div>
           <label className="flex items-end gap-2 pb-2 text-sm font-medium text-muted-foreground">
             <input name="enabled" type="checkbox" defaultChecked />
@@ -49,12 +44,12 @@ export default async function SourcesPage() {
       {sources.length === 0 ? (
         <EmptyState
           title="監視ソースが未登録です"
-          message="プリセットから候補を追加するか、ログイン不要で閲覧できる公開ページ/RSSのURLを手入力してください。追加直後は必要に応じて有効化してから収集します。"
+          message="プリセットまたは Source Discovery から候補を追加し、URLと利用規約を確認してから有効化してください。"
           action={<Link href="/sources/presets" className={secondaryButtonClass}>プリセットを確認</Link>}
         />
       ) : (
-        <Card className="overflow-hidden">
-          <table className="w-full text-sm">
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[1180px] text-sm">
             <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">ソース名</th>
@@ -67,38 +62,62 @@ export default async function SourcesPage() {
                 <th className="px-4 py-3">HTTP</th>
                 <th className="px-4 py-3">取得/新規</th>
                 <th className="px-4 py-3">キーワード</th>
-                <th className="px-4 py-3">エラー</th>
+                <th className="px-4 py-3">エラー/理由</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody>
-              {sources.map((source) => (
-                <tr key={source.id} className="border-t border-border">
-                  <td className="px-4 py-3 font-medium">{source.name}</td>
-                  <td className="px-4 py-3">{source.storeName}</td>
-                  <td className="max-w-sm truncate px-4 py-3"><a className="text-primary" href={source.url} target="_blank">{source.url}</a></td>
-                  <td className="px-4 py-3">{sourceTypeLabels[source.type] ?? source.type}</td>
-                  <td className="px-4 py-3"><Badge tone={source.enabled ? "success" : "neutral"}>{source.enabled ? "有効" : "無効"}</Badge></td>
-                  <td className="px-4 py-3">{dateTime(source.lastCheckedAt)}</td>
-                  <td className="px-4 py-3">
-                    {source.lastSuccess === null ? "-" : <Badge tone={source.lastSuccess ? "success" : "danger"}>{source.lastSuccess ? "成功" : "失敗"}</Badge>}
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">{source.lastHttpStatus ?? "-"}</td>
-                  <td className="px-4 py-3 tabular-nums">{source.lastFetchedCount} / {source.lastNewListingCount}</td>
-                  <td className="max-w-xs truncate px-4 py-3 text-xs text-muted-foreground">{source.lastMatchedKeywords ?? "-"}</td>
-                  <td className="max-w-xs truncate px-4 py-3 text-xs text-muted-foreground">{source.lastError ?? "-"}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Link className={secondaryButtonClass} href={`/sources/${source.id}/edit`}>編集</Link>
-                      <form action={toggleWatchSource}>
-                        <input type="hidden" name="id" value={source.id} />
-                        <input type="hidden" name="enabled" value={source.enabled ? "false" : "true"} />
-                        <button className={secondaryButtonClass} type="submit">{source.enabled ? "無効化" : "有効化"}</button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {sources.map((source) => {
+                const placeholderReason = placeholderSourceReason(source);
+                return (
+                  <tr key={source.id} className="border-t border-border align-top">
+                    <td className="px-4 py-3 font-medium">
+                      {source.name}
+                      {placeholderReason ? <div className="mt-1"><Badge tone="danger">プレースホルダー</Badge></div> : null}
+                    </td>
+                    <td className="px-4 py-3">{source.storeName}</td>
+                    <td className="max-w-sm px-4 py-3">
+                      <a className="break-all text-primary" href={source.url} target="_blank">{source.url}</a>
+                      {placeholderReason ? (
+                        <div className="mt-1 text-xs font-medium text-rose-700">
+                          {placeholderWarningMessage} 理由: {placeholderReason}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">{sourceTypeLabels[source.type] ?? source.type}</td>
+                    <td className="px-4 py-3">
+                      <Badge tone={placeholderReason && source.enabled ? "danger" : source.enabled ? "success" : "neutral"}>
+                        {placeholderReason && source.enabled ? "有効（要無効化）" : source.enabled ? "有効" : "無効"}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">{dateTime(source.lastCheckedAt)}</td>
+                    <td className="px-4 py-3">
+                      {source.lastSuccess === null ? "-" : <Badge tone={source.lastSuccess ? "success" : "danger"}>{source.lastSuccess ? "成功" : "失敗"}</Badge>}
+                    </td>
+                    <td className="px-4 py-3 tabular-nums">{source.lastHttpStatus ?? "-"}</td>
+                    <td className="px-4 py-3 tabular-nums">{source.lastFetchedCount} / {source.lastNewListingCount}</td>
+                    <td className="max-w-xs truncate px-4 py-3 text-xs text-muted-foreground">{source.lastMatchedKeywords ?? "-"}</td>
+                    <td className="max-w-xs px-4 py-3 text-xs text-muted-foreground">{source.lastError ?? "-"}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        <Link className={secondaryButtonClass} href={`/sources/${source.id}/edit`}>編集</Link>
+                        <form action={toggleWatchSource}>
+                          <input type="hidden" name="id" value={source.id} />
+                          <input type="hidden" name="enabled" value={source.enabled ? "false" : "true"} />
+                          <button
+                            className={secondaryButtonClass}
+                            type="submit"
+                            disabled={!source.enabled && Boolean(placeholderReason)}
+                            title={!source.enabled && placeholderReason ? placeholderWarningMessage : undefined}
+                          >
+                            {source.enabled ? "無効化" : placeholderReason ? "有効化不可" : "有効化"}
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </Card>

@@ -7,6 +7,7 @@ import { runCollectors } from "@/services/collectors/base";
 import { generateNotifications } from "@/services/notifications/generateNotifications";
 import { runPriceCollectors } from "@/services/priceCollectors/base";
 import { runSourceDiscovery } from "@/services/sourceDiscovery/discoveryRunner";
+import { cleanupPlaceholderSources } from "@/services/sources/placeholderCleanup";
 import { operationFailureMessage } from "@/lib/errorMessages";
 
 export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "full_run"] as const;
@@ -114,13 +115,22 @@ export function operationTypeLabel(type: string) {
 }
 
 async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, client: PrismaClient, options: OperationTaskOptions) {
+  const cleanup =
+    type === "price_collect"
+      ? await cleanupPlaceholderSources(client)
+      : { disabledWatchSourceCount: 0, disabledPriceSourceCount: 0, message: "" };
+  const cleanupPrefix =
+    cleanup.disabledWatchSourceCount > 0 || cleanup.disabledPriceSourceCount > 0
+      ? `プレースホルダー無効化: WatchSource ${cleanup.disabledWatchSourceCount} 件、PriceSource ${cleanup.disabledPriceSourceCount} 件\n${cleanup.message}\n\n`
+      : "";
+
   if (type === "collect") {
     const result = await runCollectors();
     await recalculateAllListingPriorities(client);
     const details = result.errorMessage ? `\n\nエラー詳細:\n${result.errorMessage}` : "";
     return {
       success: result.errorCount === 0,
-      message: `新規 ${result.newListingCount} 件、更新 ${result.updatedListingCount} 件、スキップ ${result.skippedCount} 件、エラー ${result.errorCount} 件${details}`
+      message: `${cleanupPrefix}新規 ${result.newListingCount} 件、更新 ${result.updatedListingCount} 件、スキップ ${result.skippedCount} 件、エラー ${result.errorCount} 件${details}`
     };
   }
 
@@ -130,7 +140,7 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
     const details = result.errorMessage ? `\n\nエラー詳細:\n${result.errorMessage}` : "";
     return {
       success: result.errorCount === 0,
-      message: `対象 ${result.targetCount} 件、新規 ${result.newPriceCount} 件、更新 ${result.updatedPriceCount} 件、エラー ${result.errorCount} 件${details}`
+      message: `${cleanupPrefix}対象 ${result.targetCount} 件、新規 ${result.newPriceCount} 件、更新 ${result.updatedPriceCount} 件、プレースホルダースキップ ${"skippedPlaceholderCount" in result ? result.skippedPlaceholderCount : 0} 件、エラー ${result.errorCount} 件${details}`
     };
   }
 

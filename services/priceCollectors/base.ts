@@ -1,9 +1,38 @@
 import { prisma } from "@/lib/prisma";
 import { recalculateListingPriority } from "@/lib/priorityService";
+import { placeholderSourceReason } from "@/lib/sourceGuards";
 import { collectHtmlPrices } from "./htmlPriceCollector";
 import { savePriceRecords } from "./savePriceRecords";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function usablePriceSources(options: { dryRun?: boolean } = {}) {
+  const allSources = await prisma.priceSource.findMany({ where: { enabled: true } });
+  const sources = [];
+  const skipped: string[] = [];
+
+  for (const source of allSources) {
+    const reason = placeholderSourceReason(source);
+    if (!reason) {
+      sources.push(source);
+      continue;
+    }
+    const message = `${source.shopName}: ${source.searchUrlTemplate} / ${reason}`;
+    skipped.push(message);
+    if (!options.dryRun) {
+      await prisma.priceSource.update({
+        where: { id: source.id },
+        data: {
+          enabled: false,
+          lastCheckedAt: new Date(),
+          memo: appendPlaceholderMemo(source.memo, reason)
+        }
+      });
+    }
+  }
+
+  return { sources, skipped };
+}
 
 export async function testPriceCollection(input: {
   productName: string;
@@ -13,6 +42,8 @@ export async function testPriceCollection(input: {
     ? await prisma.priceSource.findUnique({ where: { id: input.priceSourceId } })
     : await prisma.priceSource.findFirst({ where: { enabled: true }, orderBy: { updatedAt: "desc" } });
   if (!source) throw new Error("有効なPriceSourceがありません。");
+  const reason = placeholderSourceReason(source);
+  if (reason) throw new Error(`プレースホルダーのためスキップ: ${source.searchUrlTemplate} / ${reason}`);
   return {
     source,
     result: await collectHtmlPrices({ source, productName: input.productName })
@@ -22,14 +53,14 @@ export async function testPriceCollection(input: {
 export async function collectPricesForListing(listingId: string) {
   const listing = await prisma.lotteryListing.findUnique({ where: { id: listingId } });
   if (!listing) throw new Error("LotteryListingが見つかりません。");
-  const sources = await prisma.priceSource.findMany({ where: { enabled: true } });
+  const { sources, skipped } = await usablePriceSources();
   if (sources.length === 0) {
     await prisma.lotteryListing.update({
       where: { id: listing.id },
       data: { priceStatus: "error", priceCheckedAt: new Date() }
     });
     await recalculateListingPriority(prisma, listing.id);
-    throw new Error("有効なPriceSourceがありません。");
+    throw new Error(`有効な実URLのPriceSourceがありません。${skipped.length > 0 ? `プレースホルダーはスキップしました: ${skipped.join(" / ")}` : ""}`);
   }
 
   let found = 0;
@@ -53,7 +84,7 @@ export async function collectPricesForListing(listingId: string) {
     });
     await recalculateListingPriority(prisma, listing.id);
   }
-  return { found, errors };
+  return { found, errors, skippedPlaceholderCount: skipped.length };
 }
 
 export async function runPriceCollectors(options: { dryRun?: boolean } = {}) {
@@ -62,7 +93,7 @@ export async function runPriceCollectors(options: { dryRun?: boolean } = {}) {
     orderBy: [{ priceCheckedAt: "asc" }, { detectedAt: "desc" }],
     take: 50
   });
-  const sources = await prisma.priceSource.findMany({ where: { enabled: true } });
+  const { sources, skipped } = await usablePriceSources(options);
   const run = options.dryRun ? null : await prisma.priceCollectorRun.create({ data: { targetCount: listings.length } });
 
   let successCount = 0;
@@ -71,6 +102,39 @@ export async function runPriceCollectors(options: { dryRun?: boolean } = {}) {
   let updatedPriceCount = 0;
   const errors: string[] = [];
   const dryRunItems: Array<{ productName: string; shopName: string; count: number; best?: number; keywords: string[] }> = [];
+
+  if (sources.length === 0) {
+    const message = [
+      "有効な実URLのPriceSourceがないため価格取得をスキップしました。",
+      skipped.length > 0 ? `プレースホルダーのためスキップ:\n${skipped.join("\n")}` : null
+    ].filter(Boolean).join("\n");
+    if (run) {
+      const updatedRun = await prisma.priceCollectorRun.update({
+        where: { id: run.id },
+        data: {
+          finishedAt: new Date(),
+          targetCount: listings.length,
+          successCount: 0,
+          errorCount: 0,
+          newPriceCount: 0,
+          updatedPriceCount: 0,
+          errorMessage: message.slice(0, 2000)
+        }
+      });
+      return { ...updatedRun, skippedPlaceholderCount: skipped.length, items: dryRunItems };
+    }
+    return {
+      id: "dry-run",
+      targetCount: listings.length,
+      successCount: 0,
+      errorCount: 0,
+      newPriceCount: 0,
+      updatedPriceCount: 0,
+      skippedPlaceholderCount: skipped.length,
+      errorMessage: message,
+      items: dryRunItems
+    };
+  }
 
   for (const listing of listings) {
     let listingFound = 0;
@@ -108,8 +172,10 @@ export async function runPriceCollectors(options: { dryRun?: boolean } = {}) {
     successCount += 1;
   }
 
+  const messages = [...skipped.map((item) => `プレースホルダーのためスキップ: ${item}`), ...errors];
+
   if (run) {
-    return prisma.priceCollectorRun.update({
+    const updatedRun = await prisma.priceCollectorRun.update({
       where: { id: run.id },
       data: {
         finishedAt: new Date(),
@@ -118,9 +184,10 @@ export async function runPriceCollectors(options: { dryRun?: boolean } = {}) {
         errorCount,
         newPriceCount,
         updatedPriceCount,
-        errorMessage: errors.length ? errors.join("\n").slice(0, 2000) : null
+        errorMessage: messages.length ? messages.join("\n").slice(0, 2000) : null
       }
     });
+    return { ...updatedRun, skippedPlaceholderCount: skipped.length, items: dryRunItems };
   }
 
   return {
@@ -130,7 +197,14 @@ export async function runPriceCollectors(options: { dryRun?: boolean } = {}) {
     errorCount,
     newPriceCount,
     updatedPriceCount,
-    errorMessage: errors.length ? errors.join("\n") : null,
+    skippedPlaceholderCount: skipped.length,
+    errorMessage: messages.length ? messages.join("\n") : null,
     items: dryRunItems
   };
+}
+
+function appendPlaceholderMemo(memo: string | null, reason: string) {
+  const line = `プレースホルダーのため自動無効化: ${reason}`;
+  if (memo?.includes(line)) return memo;
+  return [memo, line].filter(Boolean).join("\n").slice(0, 2000);
 }
