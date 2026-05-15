@@ -6,12 +6,15 @@ export const operationSettingDefaults = {
   priceCollectEnabled: true,
   notificationsEnabled: true,
   autoBackupEnabled: false,
+  sourceDiscoveryEnabled: false,
+  priceSourceDiscoveryEnabled: false,
   collectIntervalMinutes: 360,
   priceCollectIntervalMinutes: 720,
   backupRetentionCount: 10,
   notificationMinRoi: 100,
   notificationMinProfit: 3000,
   sourceDiscoveryMode: "candidates_only",
+  priceSourceDiscoveryMode: "candidates_only",
   sourceDiscoveryAutoAddMinConfidence: 0.75
 };
 
@@ -22,7 +25,9 @@ const booleanKeys = new Set<OperationSettingKey>([
   "collectEnabled",
   "priceCollectEnabled",
   "notificationsEnabled",
-  "autoBackupEnabled"
+  "autoBackupEnabled",
+  "sourceDiscoveryEnabled",
+  "priceSourceDiscoveryEnabled"
 ]);
 
 export async function getOperationSettings(client: PrismaClient = defaultPrisma): Promise<OperationSettings> {
@@ -36,12 +41,18 @@ export async function getOperationSettings(client: PrismaClient = defaultPrisma)
     priceCollectEnabled: parseBoolean(values.get("priceCollectEnabled"), operationSettingDefaults.priceCollectEnabled),
     notificationsEnabled: parseBoolean(values.get("notificationsEnabled"), operationSettingDefaults.notificationsEnabled),
     autoBackupEnabled: parseBoolean(values.get("autoBackupEnabled"), operationSettingDefaults.autoBackupEnabled),
+    sourceDiscoveryEnabled: parseBoolean(values.get("sourceDiscoveryEnabled"), operationSettingDefaults.sourceDiscoveryEnabled),
+    priceSourceDiscoveryEnabled: parseBoolean(values.get("priceSourceDiscoveryEnabled"), operationSettingDefaults.priceSourceDiscoveryEnabled),
     collectIntervalMinutes: parseInteger(values.get("collectIntervalMinutes"), operationSettingDefaults.collectIntervalMinutes, 1),
     priceCollectIntervalMinutes: parseInteger(values.get("priceCollectIntervalMinutes"), operationSettingDefaults.priceCollectIntervalMinutes, 1),
     backupRetentionCount: parseInteger(values.get("backupRetentionCount"), operationSettingDefaults.backupRetentionCount, 1),
     notificationMinRoi: parseInteger(values.get("notificationMinRoi"), operationSettingDefaults.notificationMinRoi, 0),
     notificationMinProfit: parseInteger(values.get("notificationMinProfit"), operationSettingDefaults.notificationMinProfit, 0),
     sourceDiscoveryMode: parseSourceDiscoveryMode(values.get("sourceDiscoveryMode"), operationSettingDefaults.sourceDiscoveryMode),
+    priceSourceDiscoveryMode: parsePriceSourceDiscoveryMode(
+      values.get("priceSourceDiscoveryMode"),
+      operationSettingDefaults.priceSourceDiscoveryMode
+    ),
     sourceDiscoveryAutoAddMinConfidence: parseFloatSetting(
       values.get("sourceDiscoveryAutoAddMinConfidence"),
       operationSettingDefaults.sourceDiscoveryAutoAddMinConfidence,
@@ -67,12 +78,18 @@ export function operationSettingsFromForm(formData: FormData): OperationSettings
     priceCollectEnabled: formData.get("priceCollectEnabled") === "on",
     notificationsEnabled: formData.get("notificationsEnabled") === "on",
     autoBackupEnabled: formData.get("autoBackupEnabled") === "on",
+    sourceDiscoveryEnabled: formData.get("sourceDiscoveryEnabled") === "on",
+    priceSourceDiscoveryEnabled: formData.get("priceSourceDiscoveryEnabled") === "on",
     collectIntervalMinutes: parseInteger(readFormValue(formData, "collectIntervalMinutes"), operationSettingDefaults.collectIntervalMinutes, 1),
     priceCollectIntervalMinutes: parseInteger(readFormValue(formData, "priceCollectIntervalMinutes"), operationSettingDefaults.priceCollectIntervalMinutes, 1),
     backupRetentionCount: parseInteger(readFormValue(formData, "backupRetentionCount"), operationSettingDefaults.backupRetentionCount, 1),
     notificationMinRoi: parseInteger(readFormValue(formData, "notificationMinRoi"), operationSettingDefaults.notificationMinRoi, 0),
     notificationMinProfit: parseInteger(readFormValue(formData, "notificationMinProfit"), operationSettingDefaults.notificationMinProfit, 0),
     sourceDiscoveryMode: parseSourceDiscoveryMode(readFormValue(formData, "sourceDiscoveryMode"), operationSettingDefaults.sourceDiscoveryMode),
+    priceSourceDiscoveryMode: parsePriceSourceDiscoveryMode(
+      readFormValue(formData, "priceSourceDiscoveryMode"),
+      operationSettingDefaults.priceSourceDiscoveryMode
+    ),
     sourceDiscoveryAutoAddMinConfidence: parseFloatSetting(
       readFormValue(formData, "sourceDiscoveryAutoAddMinConfidence"),
       operationSettingDefaults.sourceDiscoveryAutoAddMinConfidence,
@@ -107,6 +124,11 @@ function parseFloatSetting(value: string | undefined, fallback: number, min: num
 
 function parseSourceDiscoveryMode(value: string | undefined, fallback: string) {
   if (value === "candidates_only" || value === "auto_add_disabled" || value === "auto_add_high_confidence_disabled") return value;
+  return fallback;
+}
+
+function parsePriceSourceDiscoveryMode(value: string | undefined, fallback: string) {
+  if (value === "candidates_only" || value === "auto_add_high_confidence_disabled" || value === "manual_review") return value;
   return fallback;
 }
 

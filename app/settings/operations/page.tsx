@@ -35,6 +35,8 @@ export default async function OperationSettingsPage() {
             <ToggleField name="priceCollectEnabled" label="価格取得を有効化" checked={settings.priceCollectEnabled} />
             <ToggleField name="notificationsEnabled" label="通知生成を有効化" checked={settings.notificationsEnabled} />
             <ToggleField name="autoBackupEnabled" label="自動バックアップを有効化" checked={settings.autoBackupEnabled} />
+            <ToggleField name="sourceDiscoveryEnabled" label="Source Discovery を一括実行に含める" checked={settings.sourceDiscoveryEnabled} />
+            <ToggleField name="priceSourceDiscoveryEnabled" label="PriceSource Discovery を一括実行に含める" checked={settings.priceSourceDiscoveryEnabled} />
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -66,6 +68,13 @@ export default async function OperationSettingsPage() {
             <Field label="高信頼自動追加の最低信頼度（0-1）">
               <input className={inputClass} name="sourceDiscoveryAutoAddMinConfidence" type="number" min="0" max="1" step="0.05" defaultValue={settings.sourceDiscoveryAutoAddMinConfidence} />
             </Field>
+            <Field label="PriceSource 自動発見モード">
+              <select className={inputClass} name="priceSourceDiscoveryMode" defaultValue={settings.priceSourceDiscoveryMode}>
+                <option value="candidates_only">候補発見のみ</option>
+                <option value="auto_add_high_confidence_disabled">高信頼候補だけ PriceSource に自動追加（enabled: false）</option>
+                <option value="manual_review">すべて手動確認</option>
+              </select>
+            </Field>
           </div>
 
           <div>
@@ -82,6 +91,7 @@ export default async function OperationSettingsPage() {
           <TaskButton type="notifications" label="通知生成" />
           <TaskButton type="backup" label="バックアップ作成" />
           <TaskButton type="source_discovery" label="ソース自動発見" />
+          <TaskButton type="price_source_discovery" label="価格ソース自動発見" />
         </div>
       </Card>
 

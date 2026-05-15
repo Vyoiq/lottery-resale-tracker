@@ -36,9 +36,16 @@ async function main() {
       { name: "ポケモンカード スペシャルBOX 抽選", query: "ポケモンカード スペシャルBOX 抽選", type: "watch_source", category: "pokemon", enabled: true },
       { name: "ポケモンカード 買取価格", query: "ポケモンカード 買取価格", type: "price_source", category: "pokemon", enabled: true },
       { name: "ポケカ 買取価格", query: "ポケカ 買取価格", type: "price_source", category: "pokemon", enabled: true },
+      { name: "ポケモンカード 買取表", query: "ポケモンカード 買取表", type: "price_source", category: "pokemon", enabled: true },
+      { name: "ポケカ 買取表", query: "ポケカ 買取表", type: "price_source", category: "pokemon", enabled: true },
+      { name: "スペシャルBOX 買取価格", query: "スペシャルBOX 買取価格", type: "price_source", category: "pokemon", enabled: true },
+      { name: "ポケモンセンター ヒロシマ BOX 買取", query: "ポケモンセンター ヒロシマ BOX 買取", type: "price_source", category: "pokemon", enabled: true },
+      { name: "ポケモンカード BOX 買取検索", query: "ポケモンカード BOX 買取検索", type: "price_source", category: "pokemon", enabled: true },
       { name: "スペシャルBOX 買取", query: "スペシャルBOX 買取", type: "price_source", category: "pokemon", enabled: true },
       { name: "トレカ 抽選販売", query: "トレカ 抽選販売", type: "watch_source", category: "trading_card", enabled: true },
-      { name: "トレカ 買取検索", query: "トレカ 買取検索", type: "price_source", category: "trading_card", enabled: true }
+      { name: "トレカ 買取検索", query: "トレカ 買取検索", type: "price_source", category: "trading_card", enabled: true },
+      { name: "トレカ 買取価格 検索", query: "トレカ 買取価格 検索", type: "price_source", category: "trading_card", enabled: true },
+      { name: "トレカ 買取表 ポケカ", query: "トレカ 買取表 ポケカ", type: "price_source", category: "trading_card", enabled: true }
     ]
   });
 

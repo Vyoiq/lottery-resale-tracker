@@ -14,6 +14,7 @@
     "collect:prices": "tsx scripts/collect-prices.ts",
     "notifications": "tsx scripts/notifications.ts",
     "discover:sources": "tsx scripts/discover-sources.ts",
+    "discover:prices": "tsx scripts/discover-prices.ts",
     "cleanup:placeholders": "tsx scripts/cleanup-placeholders.ts",
     "operate": "tsx scripts/operate.ts",
     "backup": "tsx scripts/backup.ts"

@@ -89,7 +89,10 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
   const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
   const hideIgnored = boolParam(searchParams, "hideIgnored", true);
-  const listings = await getSimpleListings(searchParams);
+  const [listings, enabledPriceSourceCount] = await Promise.all([
+    getSimpleListings(searchParams),
+    prisma.priceSource.count({ where: { enabled: true } })
+  ]);
 
   return (
     <>
@@ -99,6 +102,16 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
       >
         <Link href="/lotteries" className={secondaryButtonClass}>詳細一覧へ</Link>
       </PageHeader>
+
+      {enabledPriceSourceCount === 0 ? (
+        <Card className="mb-5 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
+          <div className="font-semibold">有効な価格ソースがありません</div>
+          <div className="mt-1">
+            PriceSource Discovery を実行し、<Link href="/source-discovery" className="font-medium underline">/source-discovery</Link> で候補を確認したうえで、
+            <Link href="/price-sources" className="font-medium underline">/price-sources</Link> から使う価格ソースを有効化してください。
+          </div>
+        </Card>
+      ) : null}
 
       <Card className="mb-5 border-teal-200 bg-teal-50/50 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

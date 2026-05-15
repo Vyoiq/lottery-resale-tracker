@@ -13,6 +13,20 @@ async function usablePriceSources(options: { dryRun?: boolean } = {}) {
 
   for (const source of allSources) {
     const reason = placeholderSourceReason(source);
+    if (!source.searchUrlTemplate.includes("{keyword}")) {
+      skipped.push(`${source.shopName}: 検索URLテンプレートが未設定`);
+      if (!options.dryRun) {
+        await prisma.priceSource.update({
+          where: { id: source.id },
+          data: {
+            enabled: false,
+            lastCheckedAt: new Date(),
+            lastError: "検索URLテンプレートが未設定のため自動無効化"
+          }
+        });
+      }
+      continue;
+    }
     if (!reason) {
       sources.push(source);
       continue;
@@ -25,6 +39,7 @@ async function usablePriceSources(options: { dryRun?: boolean } = {}) {
         data: {
           enabled: false,
           lastCheckedAt: new Date(),
+          lastError: `プレースホルダーのためスキップ: ${reason}`,
           memo: appendPlaceholderMemo(source.memo, reason)
         }
       });
@@ -44,6 +59,7 @@ export async function testPriceCollection(input: {
   if (!source) throw new Error("有効なPriceSourceがありません。");
   const reason = placeholderSourceReason(source);
   if (reason) throw new Error(`プレースホルダーのためスキップ: ${source.searchUrlTemplate} / ${reason}`);
+  if (!source.searchUrlTemplate.includes("{keyword}")) throw new Error("検索URLテンプレートが未設定です");
   return {
     source,
     result: await collectHtmlPrices({ source, productName: input.productName })
@@ -70,9 +86,26 @@ export async function collectPricesForListing(listingId: string) {
       const result = await collectHtmlPrices({ source, productName: listing.productName });
       await savePriceRecords({ prisma, listing, source, candidates: result.candidates });
       found += result.candidates.length;
-      await prisma.priceSource.update({ where: { id: source.id }, data: { lastCheckedAt: new Date() } });
+      await prisma.priceSource.update({
+        where: { id: source.id },
+        data: {
+          lastCheckedAt: new Date(),
+          lastSuccessAt: new Date(),
+          lastHttpStatus: result.httpStatus ?? null,
+          successCount: { increment: 1 },
+          lastError: null
+        }
+      });
     } catch (error) {
       errors.push(`${source.shopName}: ${error instanceof Error ? error.message : String(error)}`);
+      await prisma.priceSource.update({
+        where: { id: source.id },
+        data: {
+          lastCheckedAt: new Date(),
+          failureCount: { increment: 1 },
+          lastError: error instanceof Error ? error.message : String(error)
+        }
+      });
     }
     await delay(1500);
   }
@@ -153,12 +186,31 @@ export async function runPriceCollectors(options: { dryRun?: boolean } = {}) {
           const saved = await savePriceRecords({ prisma, listing, source, candidates: result.candidates });
           newPriceCount += saved.newPriceCount;
           updatedPriceCount += saved.updatedPriceCount;
-          await prisma.priceSource.update({ where: { id: source.id }, data: { lastCheckedAt: new Date() } });
+          await prisma.priceSource.update({
+            where: { id: source.id },
+            data: {
+              lastCheckedAt: new Date(),
+              lastSuccessAt: new Date(),
+              lastHttpStatus: result.httpStatus ?? null,
+              successCount: { increment: 1 },
+              lastError: null
+            }
+          });
         }
         listingFound += result.candidates.length;
       } catch (error) {
         errorCount += 1;
         errors.push(`${listing.productName} / ${source.shopName}: ${error instanceof Error ? error.message : String(error)}`);
+        if (!options.dryRun) {
+          await prisma.priceSource.update({
+            where: { id: source.id },
+            data: {
+              lastCheckedAt: new Date(),
+              failureCount: { increment: 1 },
+              lastError: error instanceof Error ? error.message : String(error)
+            }
+          });
+        }
       }
       if (!options.dryRun) await delay(1500);
     }

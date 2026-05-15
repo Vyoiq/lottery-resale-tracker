@@ -117,6 +117,7 @@ npm run collect:prices
 npm run collect:prices -- --dry-run
 npm run notifications
 npm run discover:sources
+npm run discover:prices
 npm run cleanup:placeholders
 npm run backup
 npm run operate
@@ -652,3 +653,34 @@ collector は公開ページの取得、抽選情報の検出、買取価格候�
 - `logs/`
 
 バックアップファイル自体もリポジトリに含めないでください。
+
+## PriceSource Discovery
+
+`/source-discovery` と `npm run discover:prices` で、ポケモンカード・トレカ系の公開買取ページ候補を探せます。
+
+- 公開RSS、許可された検索API、既存の公開ページから候補URLを集めます
+- `BRAVE_SEARCH_API_KEY`、`BING_SEARCH_API_KEY`、`SERPAPI_API_KEY` は `.env` に設定できます
+- APIキーが未設定の provider は「APIキー未設定のためスキップ」と記録して、全体処理は正常終了します
+- Google検索結果ページの直接スクレイピングは行いません
+- `q`、`query`、`keyword`、`word`、`search`、`name` のようなクエリパラメータから `searchUrlTemplate` を推定します
+- 推定できない候補は `要確認` として保存し、PriceSource に追加しても `enabled: false` のままです
+- 自動発見されたURLは必ず人が確認し、実URL・利用規約・アクセス頻度を確認してから有効化してください
+
+`.env` 例:
+
+```env
+BRAVE_SEARCH_API_KEY=
+BING_SEARCH_API_KEY=
+SERPAPI_API_KEY=
+```
+
+よく使う流れ:
+
+1. `npm run discover:prices`
+2. `/source-discovery` で `価格ソース候補` を確認
+3. 問題ない候補だけ PriceSource として追加
+4. `/price-sources` で `検索URLあり`、`実URL候補`、テスト取得結果を確認
+5. 問題ないものだけ `enabled: true`
+6. 普段は `/simple` を見る
+
+`/simple` で「有効な価格ソースがありません」と出る場合は、PriceSource Discovery を実行し、`/source-discovery` で候補を確認してから `/price-sources` で使うソースを有効化してください。

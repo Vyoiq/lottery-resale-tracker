@@ -59,6 +59,9 @@ model DiscoveredSource {
   confidenceScore  Float           @default(0)
   matchedKeywords  String?
   reason           String?
+  providerName     String?
+  searchUrlTemplateCandidate String?
+  requiresReview   Boolean         @default(false)
   status           String          @default("new")
   discoveredAt     DateTime        @default(now())
   lastSeenAt       DateTime        @default(now())
@@ -270,6 +273,11 @@ model PriceSource {
   enabled           Boolean   @default(true)
   memo              String?
   lastCheckedAt     DateTime?
+  lastSuccessAt     DateTime?
+  lastHttpStatus    Int?
+  successCount      Int       @default(0)
+  failureCount      Int       @default(0)
+  lastError         String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

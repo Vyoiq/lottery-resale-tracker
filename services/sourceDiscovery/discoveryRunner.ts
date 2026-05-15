@@ -1,13 +1,36 @@
 import type { DiscoveredSource, PrismaClient } from "@prisma/client";
 import { getOperationSettings } from "@/lib/appSettings";
 import { prisma as defaultPrisma } from "@/lib/prisma";
-import { candidateSearchTemplate, hostName } from "./queryBuilder";
+import { hostName } from "./queryBuilder";
 import { classifySourceCandidate, type ClassifiedSourceCandidate } from "./sourceClassifier";
 import { saveDiscoveredSources } from "./saveDiscoveredSources";
-import { discoverFromKnownPublicPages } from "./providers/presetLinkProvider";
-import { discoverFromSearchRss } from "./providers/rssSearchProvider";
+import { bingSearchProvider } from "./providers/bingSearchProvider";
+import { braveSearchProvider } from "./providers/braveSearchProvider";
+import { manualFallbackProvider } from "./providers/manualFallbackProvider";
+import { publicSearchFeedProvider } from "./providers/publicSearchFeedProvider";
+import { serpApiProvider } from "./providers/serpApiProvider";
+import type { SearchProvider } from "./providers/types";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const providers: SearchProvider[] = [
+  publicSearchFeedProvider,
+  braveSearchProvider,
+  bingSearchProvider,
+  serpApiProvider,
+  manualFallbackProvider
+];
+
+const defaultPriceDiscoveryQueries = [
+  { name: "ポケモンカード 買取価格", query: "ポケモンカード 買取価格", category: "pokemon" },
+  { name: "ポケカ 買取価格", query: "ポケカ 買取価格", category: "pokemon" },
+  { name: "ポケモンカード 買取表", query: "ポケモンカード 買取表", category: "pokemon" },
+  { name: "ポケカ 買取表", query: "ポケカ 買取表", category: "pokemon" },
+  { name: "スペシャルBOX 買取価格", query: "スペシャルBOX 買取価格", category: "pokemon" },
+  { name: "ポケモンセンター ヒロシマ BOX 買取", query: "ポケモンセンター ヒロシマ BOX 買取", category: "pokemon" },
+  { name: "ポケモンカード BOX 買取検索", query: "ポケモンカード BOX 買取検索", category: "pokemon" },
+  { name: "トレカ 買取価格 検索", query: "トレカ 買取価格 検索", category: "trading_card" },
+  { name: "トレカ 買取表 ポケカ", query: "トレカ 買取表 ポケカ", category: "trading_card" }
+] as const;
 
 export type SourceDiscoveryResult = {
   queryCount: number;
@@ -18,12 +41,30 @@ export type SourceDiscoveryResult = {
   autoAddedPriceCount: number;
   errorCount: number;
   errorMessage: string | null;
+  providerMessages: string[];
 };
 
 export async function runSourceDiscovery(client: PrismaClient = defaultPrisma): Promise<SourceDiscoveryResult> {
-  const settings = await getOperationSettings(client);
-  const queries = await client.discoveryQuery.findMany({
-    where: { enabled: true },
+  return runDiscovery({ client, mode: "all" });
+}
+
+export async function runPriceSourceDiscovery(client: PrismaClient = defaultPrisma): Promise<SourceDiscoveryResult> {
+  return runDiscovery({ client, mode: "price" });
+}
+
+async function runDiscovery(input: {
+  client: PrismaClient;
+  mode: "all" | "price";
+}): Promise<SourceDiscoveryResult> {
+  const settings = await getOperationSettings(input.client);
+  if (input.mode === "price") {
+    await ensureDefaultPriceDiscoveryQueries(input.client);
+  }
+  const queries = await input.client.discoveryQuery.findMany({
+    where: {
+      enabled: true,
+      ...(input.mode === "price" ? { type: { in: ["price_source", "both"] } } : {})
+    },
     orderBy: [{ category: "asc" }, { name: "asc" }]
   });
 
@@ -34,40 +75,59 @@ export async function runSourceDiscovery(client: PrismaClient = defaultPrisma): 
   let autoAddedPriceCount = 0;
   let errorCount = 0;
   const errors: string[] = [];
+  const providerMessages = new Set<string>();
 
   for (const query of queries) {
     try {
-      const rawCandidates = [
-        ...(await discoverFromSearchRss(query)),
-        ...(await discoverFromKnownPublicPages(query))
-      ];
+      const rawCandidates = [];
+      for (const provider of providers) {
+        try {
+          const result = await provider.discover(query, { mode: input.mode });
+          if (result.message) providerMessages.add(result.message);
+          rawCandidates.push(...result.candidates);
+        } catch (error) {
+          errorCount += 1;
+          errors.push(`${provider.name} / ${query.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
       const classified = rawCandidates
         .map((candidate) => classifySourceCandidate({ ...candidate, query }))
         .filter((candidate): candidate is ClassifiedSourceCandidate => Boolean(candidate))
-        .filter((candidate) => candidate.confidenceScore >= 0.25);
+        .filter((candidate) => candidate.confidenceScore >= 0.25)
+        .filter((candidate) => input.mode !== "price" || candidate.detectedType === "price_source_candidate");
 
       foundCount += classified.length;
-      const saved = await saveDiscoveredSources({ prisma: client, discoveryQueryId: query.id, candidates: classified });
+      const saved = await saveDiscoveredSources({ prisma: input.client, discoveryQueryId: query.id, candidates: classified });
       newCount += saved.newCount;
       updatedCount += saved.updatedCount;
 
-      if (settings.sourceDiscoveryMode !== "candidates_only") {
-        for (const id of saved.savedIds) {
-          const source = await client.discoveredSource.findUnique({ where: { id } });
-          if (!source || source.status !== "new") continue;
-          if (
-            settings.sourceDiscoveryMode === "auto_add_high_confidence_disabled" &&
-            source.confidenceScore < settings.sourceDiscoveryAutoAddMinConfidence
-          ) {
+      for (const id of saved.savedIds) {
+        const source = await input.client.discoveredSource.findUnique({ where: { id } });
+        if (!source || source.status !== "new") continue;
+
+        if (input.mode === "price") {
+          if (!shouldAutoAddPriceSource(settings.priceSourceDiscoveryMode, source, settings.sourceDiscoveryAutoAddMinConfidence)) {
             continue;
           }
-          if (source.detectedType === "watch_source_candidate") {
-            const added = await addDiscoveredSourceAsWatchSource(source.id, client);
-            if (added) autoAddedWatchCount += 1;
-          } else if (source.detectedType === "price_source_candidate") {
-            const added = await addDiscoveredSourceAsPriceSource(source.id, client);
-            if (added) autoAddedPriceCount += 1;
-          }
+          const added = await addDiscoveredSourceAsPriceSource(source.id, input.client);
+          if (added) autoAddedPriceCount += 1;
+          continue;
+        }
+
+        if (settings.sourceDiscoveryMode === "candidates_only") continue;
+        if (
+          settings.sourceDiscoveryMode === "auto_add_high_confidence_disabled" &&
+          source.confidenceScore < settings.sourceDiscoveryAutoAddMinConfidence
+        ) {
+          continue;
+        }
+        if (source.detectedType === "watch_source_candidate") {
+          const added = await addDiscoveredSourceAsWatchSource(source.id, input.client);
+          if (added) autoAddedWatchCount += 1;
+        } else if (source.detectedType === "price_source_candidate") {
+          const added = await addDiscoveredSourceAsPriceSource(source.id, input.client);
+          if (added) autoAddedPriceCount += 1;
         }
       }
     } catch (error) {
@@ -86,8 +146,26 @@ export async function runSourceDiscovery(client: PrismaClient = defaultPrisma): 
     autoAddedWatchCount,
     autoAddedPriceCount,
     errorCount,
-    errorMessage: errors.length > 0 ? errors.join("\n") : null
+    errorMessage: errors.length > 0 ? errors.join("\n") : null,
+    providerMessages: [...providerMessages]
   };
+}
+
+async function ensureDefaultPriceDiscoveryQueries(client: PrismaClient) {
+  const existing = await client.discoveryQuery.findMany({
+    where: { query: { in: defaultPriceDiscoveryQueries.map((query) => query.query) } },
+    select: { query: true }
+  });
+  const existingQueries = new Set(existing.map((query) => query.query));
+  const missing = defaultPriceDiscoveryQueries.filter((query) => !existingQueries.has(query.query));
+  if (missing.length === 0) return;
+  await client.discoveryQuery.createMany({
+    data: missing.map((query) => ({
+      ...query,
+      type: "price_source",
+      enabled: true
+    }))
+  });
 }
 
 export async function addDiscoveredSourceAsWatchSource(id: string, client: PrismaClient = defaultPrisma) {
@@ -113,9 +191,14 @@ export async function addDiscoveredSourceAsWatchSource(id: string, client: Prism
 export async function addDiscoveredSourceAsPriceSource(id: string, client: PrismaClient = defaultPrisma) {
   const source = await client.discoveredSource.findUnique({ where: { id } });
   if (!source || source.status === "ignored") return false;
-  const searchUrlTemplate = candidateSearchTemplate(source.normalizedUrl);
+  const searchUrlTemplate = source.searchUrlTemplateCandidate ?? "";
   const existing = await client.priceSource.findFirst({
-    where: { OR: [{ baseUrl: source.normalizedUrl }, { searchUrlTemplate }] }
+    where: {
+      OR: [
+        { baseUrl: source.normalizedUrl },
+        ...(searchUrlTemplate ? [{ searchUrlTemplate }] : [])
+      ]
+    }
   });
   if (!existing) {
     await client.priceSource.create({
@@ -125,7 +208,10 @@ export async function addDiscoveredSourceAsPriceSource(id: string, client: Prism
         baseUrl: source.normalizedUrl,
         searchUrlTemplate,
         enabled: false,
-        memo: `${buildMemo(source)}\n\n検索URLテンプレートは自動推定です。有効化前に必ず確認してください。`
+        memo: [
+          buildMemo(source),
+          searchUrlTemplate ? `推定検索URL: ${searchUrlTemplate}` : "検索URLテンプレートは要確認です。"
+        ].join("\n\n")
       }
     });
   }
@@ -137,11 +223,27 @@ export async function ignoreDiscoveredSource(id: string, client: PrismaClient = 
   await client.discoveredSource.update({ where: { id }, data: { status: "ignored" } });
 }
 
+function shouldAutoAddPriceSource(
+  mode: string,
+  source: Pick<DiscoveredSource, "confidenceScore" | "requiresReview" | "detectedType">,
+  minConfidence: number
+) {
+  if (mode !== "auto_add_high_confidence_disabled") return false;
+  return (
+    source.detectedType === "price_source_candidate" &&
+    !source.requiresReview &&
+    source.confidenceScore >= minConfidence
+  );
+}
+
 function buildMemo(source: DiscoveredSource) {
   return [
     "Source Discovery から追加しました。",
     "追加時点では enabled: false です。有効化前にURL、利用規約、アクセス頻度を確認してください。",
+    source.providerName ? `provider: ${source.providerName}` : null,
     source.reason ? `検出理由: ${source.reason}` : null,
     source.description ? `説明: ${source.description}` : null
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

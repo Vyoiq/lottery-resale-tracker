@@ -29,6 +29,9 @@ export async function saveDiscoveredSources(input: {
           confidenceScore: candidate.confidenceScore,
           matchedKeywords: candidate.matchedKeywords.join(", "),
           reason: candidate.reason,
+          providerName: candidate.providerName,
+          searchUrlTemplateCandidate: candidate.searchUrlTemplateCandidate,
+          requiresReview: candidate.requiresReview,
           lastSeenAt: new Date()
         }
       });
@@ -47,6 +50,9 @@ export async function saveDiscoveredSources(input: {
           confidenceScore: candidate.confidenceScore,
           matchedKeywords: candidate.matchedKeywords.join(", "),
           reason: candidate.reason,
+          providerName: candidate.providerName,
+          searchUrlTemplateCandidate: candidate.searchUrlTemplateCandidate,
+          requiresReview: candidate.requiresReview,
           status: "new",
           discoveredAt: new Date(),
           lastSeenAt: new Date()

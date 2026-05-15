@@ -2,11 +2,16 @@ export type DiscoveryCandidate = {
   title: string;
   url: string;
   description?: string | null;
+  providerName?: string | null;
 };
 
 export function normalizeDiscoveredUrl(value: string) {
   try {
     const url = new URL(value);
+    if (url.hostname.endsWith("bing.com") && url.pathname.includes("/news/apiclick")) {
+      const target = url.searchParams.get("url");
+      if (target) return normalizeDiscoveredUrl(target);
+    }
     url.hash = "";
     for (const key of Array.from(url.searchParams.keys())) {
       if (/^(utm_|fbclid|gclid|yclid|msclkid)/i.test(key)) url.searchParams.delete(key);
@@ -37,19 +42,30 @@ export function buildSearchRssUrls(query: string) {
   return [url.toString()];
 }
 
-export function candidateSearchTemplate(url: string) {
+export function inferSearchUrlTemplate(url: string) {
   try {
     const parsed = new URL(url);
-    for (const key of ["q", "query", "keyword", "keywords", "search", "s"]) {
+    for (const key of ["q", "query", "keyword", "word", "search", "name"]) {
       if (parsed.searchParams.has(key)) {
         parsed.searchParams.set(key, "{keyword}");
-        return parsed.toString();
+        return {
+          template: parsed.toString(),
+          requiresReview: false,
+          reason: `${key} パラメータから検索URLテンプレートを推定`
+        };
       }
     }
-    parsed.searchParams.set("q", "{keyword}");
-    return parsed.toString();
+    return {
+      template: null,
+      requiresReview: true,
+      reason: "検索キーワード用のクエリパラメータを推定できません"
+    };
   } catch {
-    return url.includes("{keyword}") ? url : `${url}${url.includes("?") ? "&" : "?"}q={keyword}`;
+    return {
+      template: url.includes("{keyword}") ? url : null,
+      requiresReview: !url.includes("{keyword}"),
+      reason: url.includes("{keyword}") ? "既存の {keyword} を使用" : "URLを解析できません"
+    };
   }
 }
 

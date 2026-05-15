@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { dateTime } from "@/lib/format";
 import { placeholderSourceReason, placeholderWarningMessage } from "@/lib/sourceGuards";
 import { Badge, buttonClass, Card, EmptyState, Field, inputClass, PageHeader, secondaryButtonClass, textareaClass } from "@/components/ui";
+import { PriceSourceTestButton } from "@/components/price-source-test-button";
 
 export default async function PriceSourcesPage() {
   const sources = await prisma.priceSource.findMany({ orderBy: [{ enabled: "desc" }, { updatedAt: "desc" }] });
@@ -52,13 +53,14 @@ export default async function PriceSourcesPage() {
         />
       ) : (
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
+          <table className="w-full min-w-[1280px] text-sm">
             <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">買取店名</th>
                 <th className="px-4 py-3">検索URLテンプレート</th>
+                <th className="px-4 py-3">品質</th>
                 <th className="px-4 py-3">有効/無効</th>
-                <th className="px-4 py-3">最終チェック</th>
+                <th className="px-4 py-3">取得状況</th>
                 <th className="px-4 py-3">メモ</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
@@ -67,6 +69,7 @@ export default async function PriceSourcesPage() {
               {sources.map((source) => {
                 const placeholderReason = placeholderSourceReason(source);
                 const placeholder = Boolean(placeholderReason);
+                const hasTemplate = source.searchUrlTemplate.includes("{keyword}");
                 return (
                   <tr key={source.id} className="border-t border-border align-top">
                     <td className="px-4 py-3 font-medium">
@@ -75,30 +78,44 @@ export default async function PriceSourcesPage() {
                       {placeholder ? <div className="mt-1"><Badge tone="danger">プレースホルダー</Badge></div> : null}
                     </td>
                     <td className="max-w-lg px-4 py-3">
-                      <div className="break-all">{source.searchUrlTemplate}</div>
+                      <div className="break-all">{source.searchUrlTemplate || "未設定"}</div>
                       <div className="text-xs text-muted-foreground">{source.baseUrl}</div>
                       {placeholder ? <div className="mt-1 text-xs font-medium text-rose-700">{placeholderWarningMessage} 理由: {placeholderReason}</div> : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="grid gap-1">
+                        <Badge tone={placeholder ? "danger" : "success"}>{placeholder ? "プレースホルダー" : "実URL候補"}</Badge>
+                        <Badge tone={hasTemplate ? "success" : "warning"}>{hasTemplate ? "検索URLあり" : "検索URL要確認"}</Badge>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <Badge tone={placeholder && source.enabled ? "danger" : source.enabled ? "success" : "neutral"}>
                         {placeholder && source.enabled ? "有効（要無効化）" : source.enabled ? "有効" : "無効"}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3">{dateTime(source.lastCheckedAt)}</td>
+                    <td className="px-4 py-3 text-xs leading-5">
+                      <div>最終成功: {dateTime(source.lastSuccessAt)}</div>
+                      <div>最終HTTP: {source.lastHttpStatus ?? "-"}</div>
+                      <div>成功 {source.successCount} / 失敗 {source.failureCount}</div>
+                      {source.lastError ? <div className="mt-1 text-rose-700">{source.lastError}</div> : null}
+                    </td>
                     <td className="max-w-sm px-4 py-3 text-xs text-muted-foreground">{source.memo ?? "-"}</td>
                     <td className="px-4 py-3">
+                      <div className="grid justify-items-end gap-2">
                       <form action={togglePriceSource} className="flex justify-end">
                         <input type="hidden" name="id" value={source.id} />
                         <input type="hidden" name="enabled" value={source.enabled ? "false" : "true"} />
                         <button
                           className={secondaryButtonClass}
                           type="submit"
-                          disabled={!source.enabled && placeholder}
-                          title={!source.enabled && placeholder ? placeholderWarningMessage : undefined}
+                          disabled={!source.enabled && (placeholder || !hasTemplate)}
+                          title={!source.enabled && placeholder ? placeholderWarningMessage : !hasTemplate ? "検索URLテンプレートを設定してください" : undefined}
                         >
-                          {source.enabled ? "無効化" : placeholder ? "有効化不可" : "有効化"}
+                          {source.enabled ? "無効化" : placeholder ? "有効化不可" : !hasTemplate ? "要確認" : "有効化"}
                         </button>
                       </form>
+                      <PriceSourceTestButton priceSourceId={source.id} />
+                      </div>
                     </td>
                   </tr>
                 );

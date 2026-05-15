@@ -388,7 +388,7 @@ export async function togglePriceSource(formData: FormData) {
     where: { id },
   });
   if (!source) return;
-  if (enabled && isPlaceholderPriceSource(source)) {
+  if (enabled && (isPlaceholderPriceSource(source) || !source.searchUrlTemplate.includes("{keyword}"))) {
     revalidatePath("/price-sources");
     revalidatePath("/health");
     return;
@@ -559,6 +559,15 @@ export async function runSourceDiscoveryAction() {
   revalidatePath("/");
   revalidatePath("/source-discovery");
   revalidatePath("/sources");
+  revalidatePath("/price-sources");
+  revalidatePath("/operation-runs");
+}
+
+export async function runPriceSourceDiscoveryAction() {
+  await runOperationTask("price_source_discovery");
+  revalidatePath("/");
+  revalidatePath("/simple");
+  revalidatePath("/source-discovery");
   revalidatePath("/price-sources");
   revalidatePath("/operation-runs");
 }

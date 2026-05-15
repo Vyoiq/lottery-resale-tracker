@@ -7,6 +7,7 @@ import {
   bulkIgnoreDiscoveredSourcesAction,
   createDiscoveryQueryAction,
   ignoreDiscoveredSourceAction,
+  runPriceSourceDiscoveryAction,
   runSourceDiscoveryAction,
   toggleDiscoveryQueryAction
 } from "@/lib/actions";
@@ -82,10 +83,13 @@ export default async function SourceDiscoveryPage({
     <>
       <PageHeader
         title="Source Discovery"
-        description="公開RSSや既存の公開ページから、抽選情報ページ・買取価格検索ページの候補URLを探します。Google検索結果ページの直接スクレイピングは行いません。"
+        description="公開RSS、許可された検索API、既存の公開ページから、抽選情報ページと買取価格ページの候補URLを探します。Google検索結果ページの直接スクレイピングは行いません。"
       >
         <form action={runSourceDiscoveryAction}>
           <button className={buttonClass} type="submit">ソース候補を探す</button>
+        </form>
+        <form action={runPriceSourceDiscoveryAction}>
+          <button className={secondaryButtonClass} type="submit">PriceSource 候補だけ探す</button>
         </form>
         <Link href="/sources" className={secondaryButtonClass}>監視ソース管理へ</Link>
         <Link href="/price-sources" className={secondaryButtonClass}>価格ソース管理へ</Link>
@@ -93,14 +97,14 @@ export default async function SourceDiscoveryPage({
 
       <Card className="mb-6 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
         発見候補を WatchSource / PriceSource に追加しても、必ず <strong>enabled: false</strong> で登録します。
-        実際に巡回する前に、URL、利用規約、ログイン不要で閲覧できること、アクセス頻度を確認してください。
+        実際に巡回する前に、URL、利用規約、アクセス頻度を確認してください。
       </Card>
 
       <div className="mb-6 grid gap-4 xl:grid-cols-[1fr_1.2fr]">
         <Card className="p-4">
           <h2 className="mb-3 font-semibold">検索キーワード</h2>
           {queries.length === 0 ? (
-            <EmptyState message="DiscoveryQuery がありません。seed を投入するか、下のフォームから追加してください。" />
+            <EmptyState message="DiscoveryQuery がありません。seed を投入するか、右のフォームから追加してください。" />
           ) : (
             <div className="grid gap-2">
               {queries.map((query) => (
@@ -170,7 +174,7 @@ export default async function SourceDiscoveryPage({
       {sources.length === 0 ? (
         <EmptyState
           title="発見候補がありません"
-          message="検索キーワードを有効化して「ソース候補を探す」を実行してください。初回はRSS検索や公開ページ取得に時間がかかる場合があります。"
+          message="検索キーワードを有効化して、候補検索を実行してください。初回はRSS検索や公開ページ取得に時間がかかる場合があります。"
         />
       ) : (
         <form>
@@ -180,7 +184,7 @@ export default async function SourceDiscoveryPage({
             <button className={secondaryButtonClass} formAction={bulkIgnoreDiscoveredSourcesAction} type="submit">選択を無視</button>
           </div>
           <Card className="overflow-x-auto">
-            <table className="w-full min-w-[1280px] text-sm">
+            <table className="w-full min-w-[1440px] text-sm">
               <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">選択</th>
@@ -188,6 +192,7 @@ export default async function SourceDiscoveryPage({
                   <th className="px-4 py-3">種別</th>
                   <th className="px-4 py-3">カテゴリ</th>
                   <th className="px-4 py-3">信頼度</th>
+                  <th className="px-4 py-3">検索URL推定</th>
                   <th className="px-4 py-3">検索キーワード</th>
                   <th className="px-4 py-3">発見日時</th>
                   <th className="px-4 py-3">登録状態</th>
@@ -203,32 +208,42 @@ export default async function SourceDiscoveryPage({
                       : source.status;
                   const canAdd = computedStatus === "new";
                   return (
-                  <tr key={source.id} className="border-t border-border align-top">
-                    <td className="px-4 py-3"><input name="ids" type="checkbox" value={source.id} disabled={!canAdd} /></td>
-                    <td className="max-w-xl px-4 py-3">
-                      <a className="font-medium text-primary" href={source.url} target="_blank">{source.title}</a>
-                      <div className="mt-1 break-all text-xs text-muted-foreground">{source.normalizedUrl}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">{source.description ?? "-"}</div>
-                      <div className="mt-1 text-xs text-amber-700">{source.reason ?? "-"}</div>
-                    </td>
-                    <td className="px-4 py-3"><TypeBadge type={source.detectedType} /></td>
-                    <td className="px-4 py-3">{categoryLabels[source.category] ?? source.category}</td>
-                    <td className="px-4 py-3 tabular-nums">{source.confidenceScore.toFixed(2)}</td>
-                    <td className="px-4 py-3">
-                      <div>{source.discoveryQuery.name}</div>
-                      <div className="text-xs text-muted-foreground">{source.discoveryQuery.query}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">{source.matchedKeywords ?? "-"}</div>
-                    </td>
-                    <td className="px-4 py-3">{dateTime(source.discoveredAt)}<div className="text-xs text-muted-foreground">最終確認 {dateTime(source.lastSeenAt)}</div></td>
-                    <td className="px-4 py-3"><StatusBadge status={computedStatus} /></td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button className={smallButtonClass} formAction={addDiscoveredWatchSourceAction} name="id" value={source.id} type="submit" disabled={!canAdd}>WatchSource</button>
-                        <button className={smallButtonClass} formAction={addDiscoveredPriceSourceAction} name="id" value={source.id} type="submit" disabled={!canAdd}>PriceSource</button>
-                        <button className={smallButtonClass} formAction={ignoreDiscoveredSourceAction} name="id" value={source.id} type="submit" disabled={source.status === "ignored"}>無視</button>
-                      </div>
-                    </td>
-                  </tr>
+                    <tr key={source.id} className="border-t border-border align-top">
+                      <td className="px-4 py-3"><input name="ids" type="checkbox" value={source.id} disabled={!canAdd} /></td>
+                      <td className="max-w-xl px-4 py-3">
+                        <a className="font-medium text-primary" href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
+                        <div className="mt-1 break-all text-xs text-muted-foreground">{source.normalizedUrl}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{source.description ?? "-"}</div>
+                        <div className="mt-1 text-xs text-amber-700">{source.reason ?? "-"}</div>
+                      </td>
+                      <td className="px-4 py-3"><TypeBadge type={source.detectedType} /></td>
+                      <td className="px-4 py-3">{categoryLabels[source.category] ?? source.category}</td>
+                      <td className="px-4 py-3 tabular-nums">{source.confidenceScore.toFixed(2)}</td>
+                      <td className="max-w-sm px-4 py-3">
+                        {source.searchUrlTemplateCandidate ? (
+                          <div className="break-all text-xs">{source.searchUrlTemplateCandidate}</div>
+                        ) : (
+                          <div className="text-xs text-amber-700">要確認</div>
+                        )}
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {source.requiresReview ? "検索URLテンプレート要確認" : `provider: ${source.providerName ?? "-"}`}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div>{source.discoveryQuery.name}</div>
+                        <div className="text-xs text-muted-foreground">{source.discoveryQuery.query}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{source.matchedKeywords ?? "-"}</div>
+                      </td>
+                      <td className="px-4 py-3">{dateTime(source.discoveredAt)}<div className="text-xs text-muted-foreground">最終確認 {dateTime(source.lastSeenAt)}</div></td>
+                      <td className="px-4 py-3"><StatusBadge status={computedStatus} /></td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button className={smallButtonClass} formAction={addDiscoveredWatchSourceAction} name="id" value={source.id} type="submit" disabled={!canAdd}>WatchSource</button>
+                          <button className={smallButtonClass} formAction={addDiscoveredPriceSourceAction} name="id" value={source.id} type="submit" disabled={!canAdd}>PriceSource</button>
+                          <button className={smallButtonClass} formAction={ignoreDiscoveredSourceAction} name="id" value={source.id} type="submit" disabled={source.status === "ignored"}>無視</button>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
