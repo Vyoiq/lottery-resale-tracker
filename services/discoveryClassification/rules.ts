@@ -27,6 +27,49 @@ const salesKeywords = ["販売価格", "通販価格", "在庫", "カート", "�
 const articleKeywords = ["記事", "ニュース", "news", "article", "コラム", "レポート"];
 const productKeywords = ["商品情報", "商品ページ", "製品情報", "product"];
 const officialOrStoreHints = ["pokemoncenter", "pokemon-card.com", "yodobashi", "biccamera", "geo-online", "tsutaya"];
+const relevantCardKeywords = [
+  "ポケモンカード",
+  "ポケカ",
+  "トレカ",
+  "抽選",
+  "抽選販売",
+  "応募",
+  "予約",
+  "受付期間",
+  "応募締切",
+  "買取",
+  "pokemon",
+  "card",
+  "trading card"
+];
+const yodobashiNoiseUrlTokens = [
+  "image.yodobashi.com/yoyaku/khn/",
+  "/yoyaku/khn/",
+  "pc_all_bloadband",
+  "bloadband",
+  "broadband",
+  "wimax",
+  "wirelessgate",
+  "pc_all",
+  "/store/470044"
+];
+const generalNoiseKeywords = [
+  "ブロードバンド",
+  "wimax",
+  "ワイヤレスゲート",
+  "j:com",
+  "iijmio",
+  "ゴールドポイント",
+  "dvd",
+  "blu-ray",
+  "家電",
+  "パソコン",
+  "食品",
+  "通信契約",
+  "お申し込み",
+  "商品一覧",
+  "通常販売"
+];
 
 export type DiscoveryClassificationInput = {
   url: string;
@@ -52,6 +95,10 @@ export type DiscoveryClassificationResult = {
 export function classifyDiscoveryType(input: DiscoveryClassificationInput, now = new Date()): DiscoveryClassificationResult {
   const articlePublishedAt = extractArticlePublishedAt(input.url, `${input.title} ${input.description ?? ""} ${input.rawText ?? ""}`);
   const text = `${input.title} ${input.description ?? ""} ${input.rawText ?? ""} ${input.url}`.toLowerCase();
+  const hardExclusion = classifyHardExclusion(input.url, text);
+  if (hardExclusion) {
+    return result(hardExclusion.discoveryType, articlePublishedAt, hardExclusion.reason, hardExclusion.scoreAdjustment);
+  }
   const isArticle = hasAny(text, articleKeywords) || Boolean(articlePublishedAt);
   const isOldArticle = articlePublishedAt ? daysBetween(articlePublishedAt, now) > 30 : false;
   const endIsPast = input.applicationEndAt ? input.applicationEndAt.getTime() < now.getTime() : false;
@@ -105,6 +152,38 @@ export function classifyDiscoveryType(input: DiscoveryClassificationInput, now =
   }
 
   return result("unknown", articlePublishedAt, "現在応募できる抽選応募ページと断定できない", -0.1);
+}
+
+export function classifyHardExclusion(url: string, text: string): { discoveryType: DiscoveryType; reason: string; scoreAdjustment: number } | null {
+  const lowerUrl = url.toLowerCase();
+  const lowerText = text.toLowerCase();
+  const host = safeHost(lowerUrl);
+  const isYodobashi = host.endsWith("yodobashi.com") || host.endsWith("yodobashi.co.jp") || lowerUrl.includes("yodobashi");
+  const hasRelevantCardKeyword = hasAny(lowerText, relevantCardKeywords);
+  const matchedNoiseUrl = yodobashiNoiseUrlTokens.find((token) => lowerUrl.includes(token));
+  const matchedNoiseKeyword = generalNoiseKeywords.find((keyword) => lowerText.includes(keyword.toLowerCase()));
+
+  if (matchedNoiseUrl) {
+    return {
+      discoveryType: "unknown",
+      reason: matchedNoiseUrl.includes("store") ? "除外: ヨドバシ汎用ストアページ" : "除外: ブロードバンド申し込みページ",
+      scoreAdjustment: -1
+    };
+  }
+
+  if (isYodobashi && lowerUrl.includes("/store/")) {
+    return { discoveryType: "unknown", reason: "除外: ヨドバシ汎用ストアページ", scoreAdjustment: -1 };
+  }
+
+  if (isYodobashi && matchedNoiseKeyword) {
+    return { discoveryType: "unknown", reason: `除外: ヨドバシノイズキーワード ${matchedNoiseKeyword}`, scoreAdjustment: -0.9 };
+  }
+
+  if (isYodobashi && !hasRelevantCardKeyword) {
+    return { discoveryType: "unknown", reason: "除外: ポケモンカード/トレカ/抽選/買取関連キーワードなし", scoreAdjustment: -0.8 };
+  }
+
+  return null;
 }
 
 export function isSimpleEligible(input: {
@@ -163,6 +242,14 @@ function matchDate(value: string, pattern: RegExp) {
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
   const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function safeHost(value: string) {
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
 
 function daysBetween(from: Date, to: Date) {

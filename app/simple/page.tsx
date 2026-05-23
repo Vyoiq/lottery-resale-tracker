@@ -42,7 +42,9 @@ async function getSimpleListings(searchParams: SearchParams) {
               aiIsLotteryApplicationPage: true,
               aiIsCurrentlyOpen: true,
               aiIsPastOrEnded: false,
-              aiIsJustArticle: false
+              aiIsJustArticle: false,
+              aiIsProductSalesPage: false,
+              aiExcludeReason: null
             },
         profitOnly ? { estimatedProfit: { gt: 0 } } : {},
         priorityOnly ? { applicationPriorityLabel: { in: ["S", "A", "B"] } } : {},
@@ -399,13 +401,17 @@ function isAiPreferredListing(listing: {
   aiIsCurrentlyOpen: boolean | null;
   aiIsPastOrEnded: boolean | null;
   aiIsJustArticle: boolean | null;
+  aiIsProductSalesPage: boolean | null;
   aiCategory: string | null;
+  aiExcludeReason: string | null;
 }) {
   return (
     listing.aiIsLotteryApplicationPage === true &&
     listing.aiIsCurrentlyOpen === true &&
     listing.aiIsPastOrEnded === false &&
     listing.aiIsJustArticle === false &&
+    listing.aiIsProductSalesPage !== true &&
+    !listing.aiExcludeReason &&
     (listing.aiCategory === "pokemon_card" || listing.aiCategory === "trading_card")
   );
 }

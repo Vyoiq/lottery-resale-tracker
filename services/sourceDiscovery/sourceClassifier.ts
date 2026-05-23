@@ -52,7 +52,27 @@ const exclusionKeywords = [
   "販売価格",
   "通販価格",
   "在庫",
-  "売り切れ"
+  "売り切れ",
+  "image.yodobashi.com/yoyaku/khn/",
+  "/yoyaku/khn/",
+  "bloadband",
+  "broadband",
+  "wimax",
+  "wirelessgate",
+  "pc_all",
+  "store/470044",
+  "ブロードバンド",
+  "ワイヤレスゲート",
+  "J:COM",
+  "IIJmio",
+  "ゴールドポイント",
+  "DVD",
+  "Blu-ray",
+  "家電",
+  "パソコン",
+  "食品",
+  "通信契約",
+  "お申し込み"
 ];
 
 export type ClassifiedSourceCandidate = {
