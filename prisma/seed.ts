@@ -49,6 +49,17 @@ async function main() {
     ]
   });
 
+  await prisma.discoveryQuery.createMany({
+    data: [
+      { name: "ポケモンカード 抽選販売 受付中", query: "ポケモンカード 抽選販売 受付中", type: "watch_source", category: "pokemon", enabled: true },
+      { name: "ポケカ 抽選販売 受付中", query: "ポケカ 抽選販売 受付中", type: "watch_source", category: "pokemon", enabled: true },
+      { name: "ポケモンカード 応募受付中", query: "ポケモンカード 応募受付中", type: "watch_source", category: "pokemon", enabled: true },
+      { name: "ポケカ 予約 抽選 今日", query: "ポケカ 予約 抽選 今日", type: "watch_source", category: "pokemon", enabled: true },
+      { name: "ポケモンカード 抽選 2026", query: "ポケモンカード 抽選 2026", type: "watch_source", category: "pokemon", enabled: true },
+      { name: "トレカ 抽選販売 受付中", query: "トレカ 抽選販売 受付中", type: "watch_source", category: "trading_card", enabled: true }
+    ]
+  });
+
   await prisma.watchSource.createMany({
     data: [
       {

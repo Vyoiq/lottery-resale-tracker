@@ -11,6 +11,7 @@ import { cleanupPlaceholderSources } from "@/services/sources/placeholderCleanup
 import { operationFailureMessage } from "@/lib/errorMessages";
 import { refreshListingStatuses } from "@/services/listings/listingStatusService";
 import { runAiClassification } from "@/services/aiClassification/runAiClassification";
+import { placeholderSourceReason } from "@/lib/sourceGuards";
 
 export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "price_source_discovery", "ai_classification", "cleanup_ended", "full_run"] as const;
 export type OperationRunType = (typeof operationRunTypes)[number];
@@ -98,7 +99,13 @@ export async function runFullOperation(client: PrismaClient = defaultPrisma): Pr
   else steps.push({ type: "backup", success: true, message: "設定によりスキップ" });
 
   const success = steps.every((step) => step.success);
-  const message = steps.map((step) => `${operationTypeLabel(step.type)}: ${step.message}`).join("\n");
+  const nextActions = await getOperationNextActions(client);
+  const message = [
+    steps.map((step) => `${operationTypeLabel(step.type)}: ${step.message}`).join("\n"),
+    nextActions.length > 0 ? `\n次アクション:\n${nextActions.map((action) => `- ${action}`).join("\n")}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   await client.operationRun.update({
     where: { id: fullRun.id },
@@ -126,6 +133,65 @@ export function operationTypeLabel(type: string) {
     restore_backup: "バックアップ復元",
     full_run: "一括実行"
   }[type] ?? type;
+}
+
+async function getOperationNextActions(client: PrismaClient) {
+  const now = new Date();
+  const [activeListingCount, enabledWatchSources, enabledPriceSources, currentDiscoveryCandidateCount, priceDiscoveryCandidateCount] = await Promise.all([
+    client.lotteryListing.count({
+      where: {
+        status: "active",
+        ignored: false,
+        applicationEndAt: { gte: now }
+      }
+    }),
+    client.watchSource.findMany({ where: { enabled: true } }),
+    client.priceSource.findMany({ where: { enabled: true } }),
+    client.discoveredSource.count({
+      where: {
+        status: "new",
+        discoveryType: "current_lottery_application",
+        OR: [
+          { aiClassifiedAt: null },
+          {
+            aiIsLotteryApplicationPage: true,
+            aiIsCurrentlyOpen: true,
+            aiIsPastOrEnded: false,
+            aiIsJustArticle: false
+          }
+        ]
+      }
+    }),
+    client.discoveredSource.count({
+      where: {
+        status: "new",
+        OR: [{ discoveryType: "price_buyback_page" }, { detectedType: "price_source_candidate" }]
+      }
+    })
+  ]);
+
+  const enabledRealWatchSourceCount = enabledWatchSources.filter((source) => !placeholderSourceReason(source)).length;
+  const enabledRealPriceSourceCount = enabledPriceSources.filter(
+    (source) => !placeholderSourceReason(source) && source.searchUrlTemplate.includes("{keyword}")
+  ).length;
+
+  const actions: string[] = [];
+  if (activeListingCount === 0) {
+    actions.push("active抽選が0件です。Source Discoveryを実行し、/source-discovery?quickFilter=current で現在受付中候補を確認してください。");
+  }
+  if (enabledRealWatchSourceCount === 0) {
+    actions.push("有効な実URLのWatchSourceが0件です。/sources または /source-discovery を確認してください。");
+  }
+  if (enabledRealPriceSourceCount === 0) {
+    actions.push("有効なPriceSourceが0件です。/source-discovery?quickFilter=price または /price-sources を確認してください。");
+  }
+  if (currentDiscoveryCandidateCount > 0) {
+    actions.push(`未登録の現在受付中候補が ${currentDiscoveryCandidateCount} 件あります。/source-discovery?quickFilter=current で確認してください。`);
+  }
+  if (priceDiscoveryCandidateCount > 0 && enabledRealPriceSourceCount === 0) {
+    actions.push(`買取価格ページ候補が ${priceDiscoveryCandidateCount} 件あります。searchUrlTemplateがある候補を優先してPriceSourceに追加してください。`);
+  }
+  return actions;
 }
 
 async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, client: PrismaClient, options: OperationTaskOptions) {

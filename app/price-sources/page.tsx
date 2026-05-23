@@ -8,6 +8,9 @@ import { PriceSourceTestButton } from "@/components/price-source-test-button";
 
 export default async function PriceSourcesPage() {
   const sources = await prisma.priceSource.findMany({ orderBy: [{ enabled: "desc" }, { updatedAt: "desc" }] });
+  const enabledRealSourceCount = sources.filter(
+    (source) => source.enabled && !placeholderSourceReason(source) && source.searchUrlTemplate.includes("{keyword}")
+  ).length;
 
   return (
     <>
@@ -27,6 +30,16 @@ export default async function PriceSourcesPage() {
           `enabled` が有効な価格ソースだけが価格取得に使われます。`example.com`、`サンプル`、`プレースホルダー`、`要差し替え`、`要確認` を含むソースは安全のため有効化できません。
         </p>
       </Card>
+
+      {enabledRealSourceCount === 0 ? (
+        <Card className="mb-4 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
+          <div className="font-semibold">有効な実URLのPriceSourceが0件です</div>
+          <p className="mt-1">
+            プレースホルダーではなく、`{"{keyword}"}` を含む検索URLテンプレートが設定されたPriceSourceを有効化してください。
+            候補がない場合は <Link href="/source-discovery?quickFilter=price" className="font-medium underline">Source Discoveryの買取価格ページ候補</Link> を確認してください。
+          </p>
+        </Card>
+      ) : null}
 
       <Card className="mb-6 p-4">
         <form action={createPriceSource} className="grid gap-4 md:grid-cols-4">

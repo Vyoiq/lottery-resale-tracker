@@ -101,15 +101,63 @@ async function getSimpleListings(searchParams: SearchParams) {
     });
 }
 
+async function getSimpleDiagnostics() {
+  const now = new Date();
+  const [enabledWatchSources, enabledPriceSources, activeListingCount, currentDiscoveryCandidateCount, priceDiscoveryCandidateCount] = await Promise.all([
+    prisma.watchSource.findMany({ where: { enabled: true } }),
+    prisma.priceSource.findMany({ where: { enabled: true } }),
+    prisma.lotteryListing.count({
+      where: {
+        status: "active",
+        ignored: false,
+        applicationEndAt: { gte: now }
+      }
+    }),
+    prisma.discoveredSource.count({
+      where: {
+        status: "new",
+        discoveryType: "current_lottery_application",
+        OR: [
+          { aiClassifiedAt: null },
+          {
+            aiIsLotteryApplicationPage: true,
+            aiIsCurrentlyOpen: true,
+            aiIsPastOrEnded: false,
+            aiIsJustArticle: false
+          }
+        ]
+      }
+    }),
+    prisma.discoveredSource.count({
+      where: {
+        status: "new",
+        OR: [{ discoveryType: "price_buyback_page" }, { detectedType: "price_source_candidate" }]
+      }
+    })
+  ]);
+
+  return {
+    activeListingCount,
+    enabledWatchSourceCount: enabledWatchSources.length,
+    enabledRealWatchSourceCount: enabledWatchSources.filter((source) => !placeholderSourceReason(source)).length,
+    enabledPriceSourceCount: enabledPriceSources.length,
+    enabledRealPriceSourceCount: enabledPriceSources.filter(
+      (source) => !placeholderSourceReason(source) && source.searchUrlTemplate.includes("{keyword}")
+    ).length,
+    currentDiscoveryCandidateCount,
+    priceDiscoveryCandidateCount
+  };
+}
+
 export default async function SimplePage({ searchParams }: { searchParams: SearchParams }) {
   const showEnded = boolParam(searchParams, "showEnded", false);
   const profitOnly = boolParam(searchParams, "profitOnly", true);
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
   const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
   const hideIgnored = boolParam(searchParams, "hideIgnored", true);
-  const [listings, enabledPriceSourceCount] = await Promise.all([
+  const [listings, diagnostics] = await Promise.all([
     getSimpleListings(searchParams),
-    prisma.priceSource.count({ where: { enabled: true } })
+    getSimpleDiagnostics()
   ]);
 
   return (
@@ -121,11 +169,21 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         <Link href="/lotteries" className={secondaryButtonClass}>詳細一覧へ</Link>
       </PageHeader>
 
-      {enabledPriceSourceCount === 0 ? (
+      {false && diagnostics.enabledRealPriceSourceCount === 0 ? (
         <Card className="mb-5 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
           <div className="font-semibold">有効な価格ソースがありません</div>
           <div className="mt-1">
             PriceSource Discovery を実行し、<Link href="/source-discovery" className="font-medium underline">/source-discovery</Link> で候補を確認したうえで、
+            <Link href="/price-sources" className="font-medium underline">/price-sources</Link> から使う価格ソースを有効化してください。
+          </div>
+        </Card>
+      ) : null}
+
+      {diagnostics.enabledRealPriceSourceCount === 0 ? (
+        <Card className="mb-5 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
+          <div className="font-semibold">有効な実URLのPriceSourceがありません</div>
+          <div className="mt-1">
+            PriceSource Discoveryを実行し、<Link href="/source-discovery?quickFilter=price" className="font-medium underline">/source-discovery</Link> で候補を確認したうえで、
             <Link href="/price-sources" className="font-medium underline">/price-sources</Link> から使う価格ソースを有効化してください。
           </div>
         </Card>
@@ -158,7 +216,9 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </form>
       </Card>
 
-      {listings.length === 0 ? (
+      {listings.length === 0 ? <SimpleEmptyGuidance diagnostics={diagnostics} /> : null}
+
+      {false && listings.length === 0 ? (
         <EmptyState
           title="判断できる候補がありません"
           message="フィルターを緩めるか、抽選情報収集、価格取得、定価入力の状態を確認してください。"
@@ -172,6 +232,40 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </div>
       )}
     </>
+  );
+}
+
+function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<typeof getSimpleDiagnostics>> }) {
+  const causes = [
+    diagnostics.activeListingCount === 0 ? "受付中の抽選がありません" : null,
+    diagnostics.enabledRealWatchSourceCount === 0 ? "有効なWatchSourceがありません" : null,
+    diagnostics.enabledRealPriceSourceCount === 0 ? "有効なPriceSourceがありません" : null,
+    diagnostics.currentDiscoveryCandidateCount === 0 ? "現在受付中のDiscovery候補がありません" : null,
+    diagnostics.priceDiscoveryCandidateCount === 0 ? "買取価格ページ候補がありません" : null
+  ].filter(Boolean);
+
+  return (
+    <Card className="border-amber-200 bg-amber-50/70 p-5">
+      <h2 className="text-lg font-semibold text-amber-950">/simple に表示できる候補がありません</h2>
+      <p className="mt-2 text-sm leading-6 text-amber-900">
+        厳しめの条件で「現在応募できる抽選」「利益あり」「価格取得済み」を優先表示しています。以下を順に確認してください。
+      </p>
+      <div className="mt-4 grid gap-2 text-sm text-amber-950">
+        {causes.map((cause) => (
+          <div key={cause} className="rounded-md border border-amber-200 bg-white/60 px-3 py-2">{cause}</div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link href="/source-discovery?quickFilter=current" className={secondaryButtonClass}>Source Discoveryを確認</Link>
+        <Link href="/source-discovery?quickFilter=price" className={secondaryButtonClass}>PriceSource Discoveryを確認</Link>
+        <Link href="/sources" className={secondaryButtonClass}>WatchSourceを有効化</Link>
+        <Link href="/price-sources" className={secondaryButtonClass}>PriceSourceを有効化</Link>
+        <Link href="/settings/operations" className={buttonClass}>運用タスクを実行</Link>
+      </div>
+      <div className="mt-3 text-xs leading-5 text-amber-800">
+        現在の状態: active抽選 {diagnostics.activeListingCount} 件 / 有効WatchSource {diagnostics.enabledRealWatchSourceCount} 件 / 有効PriceSource {diagnostics.enabledRealPriceSourceCount} 件 / 受付中候補 {diagnostics.currentDiscoveryCandidateCount} 件 / 価格候補 {diagnostics.priceDiscoveryCandidateCount} 件
+      </div>
+    </Card>
   );
 }
 

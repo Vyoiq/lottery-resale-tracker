@@ -32,6 +32,27 @@ const defaultPriceDiscoveryQueries = [
   { name: "トレカ 買取表 ポケカ", query: "トレカ 買取表 ポケカ", category: "trading_card" }
 ] as const;
 
+const currentWatchDiscoveryQueries = [
+  { name: "ポケモンカード 抽選販売 受付中", query: "ポケモンカード 抽選販売 受付中", category: "pokemon" },
+  { name: "ポケカ 抽選販売 受付中", query: "ポケカ 抽選販売 受付中", category: "pokemon" },
+  { name: "ポケモンカード 応募受付中", query: "ポケモンカード 応募受付中", category: "pokemon" },
+  { name: "ポケカ 予約 抽選 今日", query: "ポケカ 予約 抽選 今日", category: "pokemon" },
+  { name: "ポケモンカード 抽選 2026", query: "ポケモンカード 抽選 2026", category: "pokemon" },
+  { name: "トレカ 抽選販売 受付中", query: "トレカ 抽選販売 受付中", category: "trading_card" }
+] as const;
+
+const currentPriceDiscoveryQueries = [
+  { name: "ポケモンカード 買取価格", query: "ポケモンカード 買取価格", category: "pokemon" },
+  { name: "ポケカ 買取価格", query: "ポケカ 買取価格", category: "pokemon" },
+  { name: "ポケモンカード 買取表", query: "ポケモンカード 買取表", category: "pokemon" },
+  { name: "ポケカ 買取表", query: "ポケカ 買取表", category: "pokemon" },
+  { name: "スペシャルBOX 買取価格", query: "スペシャルBOX 買取価格", category: "pokemon" },
+  { name: "ポケモンセンター ヒロシマ BOX 買取", query: "ポケモンセンター ヒロシマ BOX 買取", category: "pokemon" },
+  { name: "ポケモンカード BOX 買取検索", query: "ポケモンカード BOX 買取検索", category: "pokemon" },
+  { name: "トレカ 買取価格 検索", query: "トレカ 買取価格 検索", category: "trading_card" },
+  { name: "トレカ 買取表 ポケカ", query: "トレカ 買取表 ポケカ", category: "trading_card" }
+] as const;
+
 export type SourceDiscoveryResult = {
   queryCount: number;
   foundCount: number;
@@ -57,12 +78,16 @@ async function runDiscovery(input: {
   mode: "all" | "price";
 }): Promise<SourceDiscoveryResult> {
   const settings = await getOperationSettings(input.client);
-  if (input.mode === "price") {
-    await ensureDefaultPriceDiscoveryQueries(input.client);
+  if (input.mode === "all") {
+    await ensureCurrentWatchDiscoveryQueries(input.client);
   }
+  if (input.mode === "price") {
+    await ensureCurrentPriceDiscoveryQueries(input.client);
+  }
+  const forcedQueries = input.mode === "price" ? currentPriceDiscoveryQueries.map((query) => query.query) : [];
   const queries = await input.client.discoveryQuery.findMany({
     where: {
-      enabled: true,
+      OR: [{ enabled: true }, ...(forcedQueries.length > 0 ? [{ query: { in: forcedQueries } }] : [])],
       ...(input.mode === "price" ? { type: { in: ["price_source", "both"] } } : {})
     },
     orderBy: [{ category: "asc" }, { name: "asc" }]
@@ -151,18 +176,30 @@ async function runDiscovery(input: {
   };
 }
 
-async function ensureDefaultPriceDiscoveryQueries(client: PrismaClient) {
+async function ensureCurrentWatchDiscoveryQueries(client: PrismaClient) {
+  await ensureDiscoveryQueries(client, currentWatchDiscoveryQueries, "watch_source");
+}
+
+async function ensureCurrentPriceDiscoveryQueries(client: PrismaClient) {
+  await ensureDiscoveryQueries(client, currentPriceDiscoveryQueries, "price_source");
+}
+
+async function ensureDiscoveryQueries(
+  client: PrismaClient,
+  defaultQueries: readonly { name: string; query: string; category: string }[],
+  type: "watch_source" | "price_source"
+) {
   const existing = await client.discoveryQuery.findMany({
-    where: { query: { in: defaultPriceDiscoveryQueries.map((query) => query.query) } },
+    where: { query: { in: defaultQueries.map((query) => query.query) } },
     select: { query: true }
   });
   const existingQueries = new Set(existing.map((query) => query.query));
-  const missing = defaultPriceDiscoveryQueries.filter((query) => !existingQueries.has(query.query));
+  const missing = defaultQueries.filter((query) => !existingQueries.has(query.query));
   if (missing.length === 0) return;
   await client.discoveryQuery.createMany({
     data: missing.map((query) => ({
       ...query,
-      type: "price_source",
+      type,
       enabled: true
     }))
   });

@@ -45,7 +45,7 @@ export async function requestOllamaClassification(userPrompt: string): Promise<A
       format: aiClassificationJsonSchema,
       options: { temperature: 0 }
     }),
-    signal: AbortSignal.timeout(120000)
+    signal: AbortSignal.timeout(Number(process.env.AI_CLASSIFICATION_TIMEOUT_MS ?? 30000))
   });
 
   if (!response.ok) {

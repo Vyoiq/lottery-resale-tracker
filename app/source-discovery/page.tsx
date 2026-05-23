@@ -42,19 +42,39 @@ const statusLabels: Record<string, string> = {
 export default async function SourceDiscoveryPage({
   searchParams
 }: {
-  searchParams: { q?: string; detectedType?: string; discoveryType?: string; category?: string; status?: string };
+  searchParams: { q?: string; detectedType?: string; discoveryType?: string; category?: string; status?: string; quickFilter?: string };
 }) {
   const q = searchParams.q?.trim() ?? "";
   const detectedType = searchParams.detectedType?.trim() ?? "";
   const discoveryType = searchParams.discoveryType?.trim() ?? "";
+  const quickFilter = searchParams.quickFilter?.trim() ?? "";
   const category = searchParams.category?.trim() ?? "";
   const status = searchParams.status?.trim() ?? "new";
 
-  const [queries, sources, watchSources, priceSources] = await Promise.all([
+  const [queries, rawSources, watchSources, priceSources] = await Promise.all([
     prisma.discoveryQuery.findMany({ orderBy: [{ enabled: "desc" }, { category: "asc" }, { name: "asc" }] }),
     prisma.discoveredSource.findMany({
       where: {
         AND: [
+          quickFilter === "current"
+            ? {
+                discoveryType: "current_lottery_application",
+                OR: [
+                  { aiClassifiedAt: null },
+                  {
+                    aiIsLotteryApplicationPage: true,
+                    aiIsCurrentlyOpen: true,
+                    aiIsPastOrEnded: false,
+                    aiIsJustArticle: false
+                  }
+                ]
+              }
+            : {},
+          quickFilter === "price"
+            ? {
+                OR: [{ discoveryType: "price_buyback_page" }, { detectedType: "price_source_candidate" }]
+              }
+            : {},
           detectedType ? { detectedType } : {},
           discoveryType ? { discoveryType } : {},
           category ? { category } : {},
@@ -80,6 +100,15 @@ export default async function SourceDiscoveryPage({
     prisma.watchSource.findMany({ select: { url: true } }),
     prisma.priceSource.findMany({ select: { baseUrl: true, searchUrlTemplate: true } })
   ]);
+  const sources = rawSources.sort((a, b) => {
+    const aPrice = a.discoveryType === "price_buyback_page" || a.detectedType === "price_source_candidate" ? 1 : 0;
+    const bPrice = b.discoveryType === "price_buyback_page" || b.detectedType === "price_source_candidate" ? 1 : 0;
+    const aTemplate = a.searchUrlTemplateCandidate ? 1 : 0;
+    const bTemplate = b.searchUrlTemplateCandidate ? 1 : 0;
+    const aCurrent = isSimpleEligibleSource(a) ? 1 : 0;
+    const bCurrent = isSimpleEligibleSource(b) ? 1 : 0;
+    return bCurrent - aCurrent || bPrice - aPrice || bTemplate - aTemplate || b.confidenceScore - a.confidenceScore;
+  });
   const watchSourceUrls = new Set(watchSources.map((source) => source.url));
   const priceSourceUrls = new Set(priceSources.flatMap((source) => [source.baseUrl, source.searchUrlTemplate]));
 
@@ -160,8 +189,13 @@ export default async function SourceDiscoveryPage({
       </div>
 
       <Card className="mb-4 p-4">
-        <form className="grid gap-3 md:grid-cols-[1fr_200px_220px_160px_160px_auto]">
+        <form className="grid gap-3 md:grid-cols-[1fr_190px_200px_220px_160px_160px_auto]">
           <input className={inputClass} name="q" defaultValue={q} placeholder="タイトル、URL、キーワード検索" />
+          <select className={inputClass} name="quickFilter" defaultValue={quickFilter}>
+            <option value="">クイックフィルターなし</option>
+            <option value="current">現在受付中候補のみ</option>
+            <option value="price">買取価格ページ候補のみ</option>
+          </select>
           <select className={inputClass} name="detectedType" defaultValue={detectedType}>
             <option value="">種別すべて</option>
             {Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}

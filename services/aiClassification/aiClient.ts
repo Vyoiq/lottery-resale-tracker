@@ -45,5 +45,12 @@ export async function requestAiClassification(userPrompt: string): Promise<AiCla
 }
 
 export function isTerminalAiProviderError(error: unknown) {
-  return isTerminalOpenAiApiError(error) || error instanceof OllamaUnavailableError;
+  return isTerminalOpenAiApiError(error) || error instanceof OllamaUnavailableError || isTimeoutLikeError(error);
+}
+
+function isTimeoutLikeError(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.name === "TimeoutError" || error.message.toLowerCase().includes("timeout"))
+  );
 }

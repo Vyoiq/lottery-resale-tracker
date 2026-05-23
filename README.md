@@ -738,6 +738,20 @@ npm run reclassify:sources
 npm run cleanup:ended
 ```
 
+### active 0件のときの確認方法
+
+`cleanup:ended` や `operate` の結果で `active 0件` になった場合、終了済み判定は正常に動いています。次の順に確認してください。
+
+1. `/simple` の空状態メッセージで原因を確認します。
+2. 有効な `WatchSource` が0件なら `/sources` または `/source-discovery` で実URLを確認して有効化します。
+3. 有効な `PriceSource` が0件なら `/source-discovery?quickFilter=price` で買取価格ページ候補を確認し、`/price-sources` で有効化します。
+4. `/source-discovery?quickFilter=current` で「現在受付中候補のみ」を確認します。
+5. 候補が少ない場合は `npm run discover:sources` と `npm run discover:prices` を実行します。
+6. AI分類が未実行なら `npm run classify:ai` を実行します。APIキーやOllamaが未設定の場合はスキップされます。
+7. 再判定が必要な場合は `npm run reclassify:sources` と `npm run cleanup:ended` を実行します。
+
+`npm run operate` の最後にも、active抽選や有効なPriceSourceが0件の場合の次アクションを表示します。
+
 `/source-discovery` では `discoveryType`、記事日付、応募締切、AI分類、除外理由、`/simple` 表示対象かどうかを確認できます。
 
 ### OllamaでAI分類する
