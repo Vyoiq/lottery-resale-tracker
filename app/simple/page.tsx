@@ -35,18 +35,15 @@ async function getSimpleListings(searchParams: SearchParams) {
       AND: [
         hideIgnored ? { ignored: false } : {},
         showEnded ? {} : { status: "active", applicationEndAt: { gte: now } },
-        {
-          OR: [
-            { aiClassifiedAt: null },
-            {
+        showEnded
+          ? {}
+          : {
+              discoveryType: "current_lottery_application",
               aiIsLotteryApplicationPage: true,
               aiIsCurrentlyOpen: true,
               aiIsPastOrEnded: false,
-              aiIsJustArticle: false,
-              aiCategory: { in: ["pokemon_card", "trading_card"] }
-            }
-          ]
-        },
+              aiIsJustArticle: false
+            },
         profitOnly ? { estimatedProfit: { gt: 0 } } : {},
         priorityOnly ? { applicationPriorityLabel: { in: ["S", "A", "B"] } } : {},
         priceFoundOnly ? { priceStatus: "found", bestBuyPrice: { not: null } } : {},

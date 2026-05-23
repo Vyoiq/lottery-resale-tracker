@@ -2,9 +2,11 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { classifyDiscoveredSource } from "./classifyDiscoveredSource";
 import { classifyLotteryListing } from "./classifyLotteryListing";
-import { hasOpenAiApiKey } from "./openAiClient";
+import { getAiProviderStatus, isTerminalAiProviderError } from "./aiClient";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sourceLimit = 5;
+const listingLimit = 10;
 
 export type AiClassificationRunResult = {
   skipped: boolean;
@@ -14,10 +16,13 @@ export type AiClassificationRunResult = {
   listingClassifiedCount: number;
   errorCount: number;
   errorMessage: string | null;
+  provider: string;
+  skipReason: string | null;
 };
 
 export async function runAiClassification(client: PrismaClient = defaultPrisma): Promise<AiClassificationRunResult> {
-  if (!hasOpenAiApiKey()) {
+  const providerStatus = await getAiProviderStatus();
+  if (!providerStatus.enabled) {
     return {
       skipped: true,
       discoveredTargetCount: 0,
@@ -25,7 +30,9 @@ export async function runAiClassification(client: PrismaClient = defaultPrisma):
       discoveredClassifiedCount: 0,
       listingClassifiedCount: 0,
       errorCount: 0,
-      errorMessage: null
+      errorMessage: null,
+      provider: providerStatus.provider,
+      skipReason: providerStatus.skipReason
     };
   }
 
@@ -37,18 +44,15 @@ export async function runAiClassification(client: PrismaClient = defaultPrisma):
         detectedType: { in: ["watch_source_candidate", "unknown"] }
       },
       orderBy: [{ confidenceScore: "desc" }, { discoveredAt: "desc" }],
-      take: 20
+      take: sourceLimit
     }),
     client.lotteryListing.findMany({
       where: {
         ignored: false,
-        OR: [
-          { aiClassifiedAt: null },
-          { aiClassifiedAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }, updatedAt: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } }
-        ]
+        aiClassifiedAt: null
       },
       orderBy: [{ detectedAt: "desc" }],
-      take: 50
+      take: listingLimit
     })
   ]);
 
@@ -56,6 +60,7 @@ export async function runAiClassification(client: PrismaClient = defaultPrisma):
   let listingClassifiedCount = 0;
   let errorCount = 0;
   const errors: string[] = [];
+  let terminalApiFailure = false;
 
   for (const source of sources) {
     try {
@@ -64,17 +69,25 @@ export async function runAiClassification(client: PrismaClient = defaultPrisma):
     } catch (error) {
       errorCount += 1;
       errors.push(`DiscoveredSource ${source.id}: ${error instanceof Error ? error.message : String(error)}`);
+      if (isTerminalAiProviderError(error)) {
+        terminalApiFailure = true;
+        break;
+      }
     }
     await delay(700);
   }
 
-  for (const listing of listings) {
+  for (const listing of terminalApiFailure ? [] : listings) {
     try {
       await classifyLotteryListing(listing, client);
       listingClassifiedCount += 1;
     } catch (error) {
       errorCount += 1;
       errors.push(`LotteryListing ${listing.id}: ${error instanceof Error ? error.message : String(error)}`);
+      if (isTerminalAiProviderError(error)) {
+        terminalApiFailure = true;
+        break;
+      }
     }
     await delay(700);
   }
@@ -86,6 +99,8 @@ export async function runAiClassification(client: PrismaClient = defaultPrisma):
     discoveredClassifiedCount,
     listingClassifiedCount,
     errorCount,
-    errorMessage: errors.length > 0 ? errors.join("\n") : null
+    errorMessage: errors.length > 0 ? errors.join("\n") : null,
+    provider: providerStatus.provider,
+    skipReason: null
   };
 }

@@ -1,7 +1,8 @@
 import type { LotteryListing, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "@/lib/prisma";
+import { classifyDiscoveryType } from "@/services/discoveryClassification/rules";
 import { lotteryListingUserPrompt } from "./prompts";
-import { getOpenAiModel, requestAiClassification } from "./openAiClient";
+import { getAiModelLabel, requestAiClassification } from "./aiClient";
 
 export async function classifyLotteryListing(listing: LotteryListing, client: PrismaClient = defaultPrisma) {
   const result = await requestAiClassification(
@@ -19,13 +20,29 @@ export async function classifyLotteryListing(listing: LotteryListing, client: Pr
       purchaseDeadlineAt: listing.purchaseDeadlineAt
     })
   );
+  const discoveryClassification = classifyDiscoveryType({
+    url: listing.normalizedUrl || listing.lotteryUrl,
+    title: listing.title,
+    description: listing.description,
+    rawText: listing.rawText,
+    applicationEndAt: listing.applicationEndAt ?? parseNullableDate(result.applicationEndAt),
+    aiIsLotteryApplicationPage: result.isLotteryApplicationPage,
+    aiIsCurrentlyOpen: result.isCurrentlyOpen,
+    aiIsPastOrEnded: result.isPastOrEnded,
+    aiIsJustArticle: result.isJustArticle,
+    aiIsProductSalesPage: result.isProductSalesPage,
+    aiIsPriceBuybackPage: result.isPriceBuybackPage
+  });
 
   const nextStatus =
     listing.ignored
       ? "ignored"
-      : result.confidenceScore >= 0.7 && result.isPastOrEnded
+      : discoveryClassification.discoveryType === "ended_lottery_article" ||
+          discoveryClassification.discoveryType === "lottery_news_article" ||
+          (result.confidenceScore >= 0.7 && result.isPastOrEnded)
         ? "ended"
-        : result.confidenceScore >= 0.7 && result.isLotteryApplicationPage && result.isCurrentlyOpen === true
+        : discoveryClassification.discoveryType === "current_lottery_application" ||
+            (result.confidenceScore >= 0.7 && result.isLotteryApplicationPage && result.isCurrentlyOpen === true)
           ? "active"
           : listing.status;
 
@@ -33,7 +50,7 @@ export async function classifyLotteryListing(listing: LotteryListing, client: Pr
     where: { id: listing.id },
     data: {
       aiClassifiedAt: new Date(),
-      aiModel: getOpenAiModel(),
+      aiModel: getAiModelLabel(),
       aiIsLotteryApplicationPage: result.isLotteryApplicationPage,
       aiIsCurrentlyOpen: result.isCurrentlyOpen,
       aiIsPastOrEnded: result.isPastOrEnded,
@@ -46,8 +63,10 @@ export async function classifyLotteryListing(listing: LotteryListing, client: Pr
       aiApplicationEndAt: parseNullableDate(result.applicationEndAt),
       aiResultAnnouncementAt: parseNullableDate(result.resultAnnouncementAt),
       aiPurchaseDeadlineAt: parseNullableDate(result.purchaseDeadlineAt),
+      articlePublishedAt: discoveryClassification.articlePublishedAt,
+      discoveryType: discoveryClassification.discoveryType,
       aiReason: result.reason,
-      aiExcludeReason: result.excludeReason,
+      aiExcludeReason: discoveryClassification.excludeReason ?? result.excludeReason,
       applicationStartAt: listing.applicationStartAt ?? parseNullableDate(result.applicationStartAt),
       applicationEndAt: listing.applicationEndAt ?? parseNullableDate(result.applicationEndAt),
       resultAnnouncementAt: listing.resultAnnouncementAt ?? parseNullableDate(result.resultAnnouncementAt),

@@ -55,6 +55,7 @@ model DiscoveredSource {
   normalizedUrl    String          @unique
   description      String?
   detectedType     String          @default("unknown")
+  discoveryType    String          @default("unknown")
   category         String          @default("other")
   confidenceScore  Float           @default(0)
   matchedKeywords  String?
@@ -77,6 +78,7 @@ model DiscoveredSource {
   aiApplicationEndAt DateTime?
   aiResultAnnouncementAt DateTime?
   aiPurchaseDeadlineAt DateTime?
+  articlePublishedAt DateTime?
   aiReason         String?
   aiExcludeReason  String?
   status           String          @default("new")
@@ -88,6 +90,8 @@ model DiscoveredSource {
 
   @@index([discoveryQueryId])
   @@index([detectedType])
+  @@index([discoveryType])
+  @@index([articlePublishedAt])
   @@index([category])
   @@index([confidenceScore])
   @@index([aiIsLotteryApplicationPage])
@@ -115,6 +119,7 @@ model LotteryListing {
   detectedAt               DateTime       @default(now())
   lastSeenAt               DateTime       @default(now())
   status                   String         @default("unknown")
+  discoveryType            String         @default("unknown")
   confidenceScore          Float          @default(0)
   matchedKeywords          String?
   confidenceReason         String?
@@ -143,6 +148,7 @@ model LotteryListing {
   aiApplicationEndAt       DateTime?
   aiResultAnnouncementAt   DateTime?
   aiPurchaseDeadlineAt     DateTime?
+  articlePublishedAt       DateTime?
   aiReason                 String?
   aiExcludeReason          String?
   applicationPriorityScore Float          @default(0)
@@ -179,7 +185,9 @@ model LotteryListing {
   @@index([productName])
   @@index([storeName])
   @@index([status])
+  @@index([discoveryType])
   @@index([applicationEndAt])
+  @@index([articlePublishedAt])
   @@index([detectedAt])
   @@index([lastSeenAt])
   @@index([contentHash])

@@ -16,6 +16,7 @@
     "discover:sources": "tsx scripts/discover-sources.ts",
     "discover:prices": "tsx scripts/discover-prices.ts",
     "classify:ai": "tsx scripts/classify-ai.ts",
+    "reclassify:sources": "tsx scripts/reclassify-sources.ts",
     "cleanup:placeholders": "tsx scripts/cleanup-placeholders.ts",
     "cleanup:ended": "tsx scripts/cleanup-ended.ts",
     "operate": "tsx scripts/operate.ts",

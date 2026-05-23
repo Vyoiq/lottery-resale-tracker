@@ -42,10 +42,11 @@ const statusLabels: Record<string, string> = {
 export default async function SourceDiscoveryPage({
   searchParams
 }: {
-  searchParams: { q?: string; detectedType?: string; category?: string; status?: string };
+  searchParams: { q?: string; detectedType?: string; discoveryType?: string; category?: string; status?: string };
 }) {
   const q = searchParams.q?.trim() ?? "";
   const detectedType = searchParams.detectedType?.trim() ?? "";
+  const discoveryType = searchParams.discoveryType?.trim() ?? "";
   const category = searchParams.category?.trim() ?? "";
   const status = searchParams.status?.trim() ?? "new";
 
@@ -55,6 +56,7 @@ export default async function SourceDiscoveryPage({
       where: {
         AND: [
           detectedType ? { detectedType } : {},
+          discoveryType ? { discoveryType } : {},
           category ? { category } : {},
           status ? { status } : {},
           q
@@ -64,7 +66,8 @@ export default async function SourceDiscoveryPage({
                   { url: { contains: q } },
                   { description: { contains: q } },
                   { matchedKeywords: { contains: q } },
-                  { reason: { contains: q } }
+                  { reason: { contains: q } },
+                  { aiExcludeReason: { contains: q } }
                 ]
               }
             : {}
@@ -157,11 +160,21 @@ export default async function SourceDiscoveryPage({
       </div>
 
       <Card className="mb-4 p-4">
-        <form className="grid gap-3 md:grid-cols-[1fr_200px_160px_160px_auto]">
+        <form className="grid gap-3 md:grid-cols-[1fr_200px_220px_160px_160px_auto]">
           <input className={inputClass} name="q" defaultValue={q} placeholder="タイトル、URL、キーワード検索" />
           <select className={inputClass} name="detectedType" defaultValue={detectedType}>
             <option value="">種別すべて</option>
             {Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <select className={inputClass} name="discoveryType" defaultValue={discoveryType}>
+            <option value="">discoveryType すべて</option>
+            <option value="current_lottery_application">current_lottery_application</option>
+            <option value="ended_lottery_article">ended_lottery_article</option>
+            <option value="lottery_news_article">lottery_news_article</option>
+            <option value="official_product_page">official_product_page</option>
+            <option value="price_buyback_page">price_buyback_page</option>
+            <option value="sales_page">sales_page</option>
+            <option value="unknown">unknown</option>
           </select>
           <select className={inputClass} name="category" defaultValue={category}>
             <option value="">カテゴリすべて</option>
@@ -188,15 +201,17 @@ export default async function SourceDiscoveryPage({
             <button className={secondaryButtonClass} formAction={bulkIgnoreDiscoveredSourcesAction} type="submit">選択を無視</button>
           </div>
           <Card className="overflow-x-auto">
-            <table className="w-full min-w-[1620px] text-sm">
+            <table className="w-full min-w-[1900px] text-sm">
               <thead className="bg-muted text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">選択</th>
                   <th className="px-4 py-3">候補</th>
                   <th className="px-4 py-3">種別</th>
+                  <th className="px-4 py-3">discoveryType</th>
                   <th className="px-4 py-3">カテゴリ</th>
                   <th className="px-4 py-3">信頼度</th>
                   <th className="px-4 py-3">AI判定</th>
+                  <th className="px-4 py-3">Simple表示</th>
                   <th className="px-4 py-3">検索URL推定</th>
                   <th className="px-4 py-3">検索キーワード</th>
                   <th className="px-4 py-3">発見日時</th>
@@ -222,6 +237,7 @@ export default async function SourceDiscoveryPage({
                         <div className="mt-1 text-xs text-amber-700">{source.reason ?? "-"}</div>
                       </td>
                       <td className="px-4 py-3"><TypeBadge type={source.detectedType} /></td>
+                      <td className="px-4 py-3"><DiscoveryTypeBadge type={source.discoveryType} /></td>
                       <td className="px-4 py-3">{categoryLabels[source.category] ?? source.category}</td>
                       <td className="px-4 py-3 tabular-nums">{source.confidenceScore.toFixed(2)}</td>
                       <td className="max-w-sm px-4 py-3">
@@ -236,12 +252,20 @@ export default async function SourceDiscoveryPage({
                               </Badge>
                             </div>
                             <div className="tabular-nums text-muted-foreground">AI {source.aiConfidenceScore?.toFixed(2) ?? "-"}</div>
+                            <div className="text-muted-foreground">記事日付: {dateTime(source.articlePublishedAt)}</div>
+                            <div className="text-muted-foreground">応募締切: {dateTime(source.aiApplicationEndAt)}</div>
                             <div className="text-muted-foreground">{source.aiReason ?? "-"}</div>
                             {source.aiExcludeReason ? <div className="text-rose-700">{source.aiExcludeReason}</div> : null}
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">未分類</span>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge tone={isSimpleEligibleSource(source) ? "success" : "neutral"}>
+                          {isSimpleEligibleSource(source) ? "表示対象" : "非表示"}
+                        </Badge>
+                        {source.aiExcludeReason ? <div className="mt-1 text-xs text-rose-700">{source.aiExcludeReason}</div> : null}
                       </td>
                       <td className="max-w-sm px-4 py-3">
                         {source.searchUrlTemplateCandidate ? (
@@ -289,4 +313,31 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "new") return <Badge tone="warning">{statusLabels[status]}</Badge>;
   if (status === "ignored") return <Badge tone="danger">{statusLabels[status]}</Badge>;
   return <Badge tone="success">{statusLabels[status] ?? status}</Badge>;
+}
+
+function DiscoveryTypeBadge({ type }: { type: string }) {
+  if (type === "current_lottery_application") return <Badge tone="success">{type}</Badge>;
+  if (type === "price_buyback_page") return <Badge tone="primary">{type}</Badge>;
+  if (type === "ended_lottery_article" || type === "lottery_news_article") return <Badge tone="danger">{type}</Badge>;
+  if (type === "sales_page" || type === "official_product_page") return <Badge tone="warning">{type}</Badge>;
+  return <Badge tone="neutral">{type}</Badge>;
+}
+
+function isSimpleEligibleSource(source: {
+  discoveryType: string;
+  aiIsLotteryApplicationPage: boolean | null;
+  aiIsCurrentlyOpen: boolean | null;
+  aiIsPastOrEnded: boolean | null;
+  aiIsJustArticle: boolean | null;
+  aiApplicationEndAt: Date | null;
+}) {
+  const now = new Date();
+  return (
+    source.discoveryType === "current_lottery_application" &&
+    source.aiIsLotteryApplicationPage === true &&
+    source.aiIsCurrentlyOpen === true &&
+    source.aiIsPastOrEnded === false &&
+    source.aiIsJustArticle === false &&
+    Boolean(source.aiApplicationEndAt && source.aiApplicationEndAt.getTime() >= now.getTime())
+  );
 }

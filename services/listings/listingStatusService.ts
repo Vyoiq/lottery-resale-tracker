@@ -9,8 +9,9 @@ type ListingStatusInput = Pick<
   "applicationEndAt" | "purchaseDeadlineAt" | "resultAnnouncementAt" | "title" | "rawText" | "ignored"
 >;
 
-export function inferListingStatus(listing: ListingStatusInput, now = new Date()) {
+export function inferListingStatus(listing: ListingStatusInput & { discoveryType?: string | null }, now = new Date()) {
   if (listing.ignored) return "ignored";
+  if (listing.discoveryType === "ended_lottery_article" || listing.discoveryType === "lottery_news_article") return "ended";
   if (listing.applicationEndAt) {
     return listing.applicationEndAt.getTime() >= now.getTime() ? "active" : "ended";
   }
@@ -38,6 +39,7 @@ export async function refreshListingStatuses(client: PrismaClient = defaultPrism
       applicationEndAt: true,
       purchaseDeadlineAt: true,
       resultAnnouncementAt: true,
+      discoveryType: true,
       title: true,
       rawText: true
     }

@@ -1,5 +1,6 @@
 import type { DiscoveryQuery } from "@prisma/client";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { classifyDiscoveryType, type DiscoveryType } from "@/services/discoveryClassification/rules";
 import { hostName, inferSearchUrlTemplate, normalizeDiscoveredUrl } from "./queryBuilder";
 
 const watchKeywords = [
@@ -60,6 +61,8 @@ export type ClassifiedSourceCandidate = {
   normalizedUrl: string;
   description?: string | null;
   detectedType: "watch_source_candidate" | "price_source_candidate" | "unknown";
+  discoveryType: DiscoveryType;
+  articlePublishedAt?: Date | null;
   category: string;
   confidenceScore: number;
   matchedKeywords: string[];
@@ -86,6 +89,11 @@ export function classifySourceCandidate(input: {
   const matchedWatch = watchKeywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));
   const matchedPrice = priceKeywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));
   const inferredTemplate = inferSearchUrlTemplate(normalizedUrl);
+  const discoveryClassification = classifyDiscoveryType({
+    url: normalizedUrl,
+    title: input.title,
+    description: input.description
+  });
 
   let score = 0.15;
   score += Math.min(0.35, matchedWatch.length * 0.07);
@@ -97,6 +105,7 @@ export function classifySourceCandidate(input: {
   if (matchedPrice.length >= 2) score += 0.08;
   if (inferredTemplate.template) score += 0.08;
   score -= Math.min(0.5, matchedExclusions.length * 0.18);
+  score += discoveryClassification.scoreAdjustment;
 
   const detectedType =
     matchedPrice.length > matchedWatch.length
@@ -124,10 +133,12 @@ export function classifySourceCandidate(input: {
     normalizedUrl,
     description: input.description?.trim() || null,
     detectedType,
+    discoveryType: discoveryClassification.discoveryType,
+    articlePublishedAt: discoveryClassification.articlePublishedAt,
     category: input.query.category || inferCategory(haystack),
     confidenceScore,
     matchedKeywords,
-    reason: reasonParts.join(" / "),
+    reason: [...reasonParts, discoveryClassification.excludeReason].filter(Boolean).join(" / "),
     providerName: input.providerName ?? null,
     searchUrlTemplateCandidate: inferredTemplate.template,
     requiresReview: inferredTemplate.requiresReview

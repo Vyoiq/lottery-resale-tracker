@@ -9,7 +9,18 @@ export function hasOpenAiApiKey() {
   return Boolean(process.env.OPENAI_API_KEY?.trim());
 }
 
-export async function requestAiClassification(userPrompt: string): Promise<AiClassificationResult> {
+export class OpenAiApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code: string | null
+  ) {
+    super(message);
+    this.name = "OpenAiApiError";
+  }
+}
+
+export async function requestOpenAiClassification(userPrompt: string): Promise<AiClassificationResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error("OPENAI_API_KEY が未設定です。");
 
@@ -39,13 +50,17 @@ export async function requestAiClassification(userPrompt: string): Promise<AiCla
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(`OpenAI API ${response.status}: ${detail.slice(0, 300)}`);
+    throw new OpenAiApiError(`OpenAI API ${response.status}: ${detail.slice(0, 300)}`, response.status, extractErrorCode(detail));
   }
 
   const payload = (await response.json()) as Record<string, unknown>;
   const text = extractResponseText(payload);
   if (!text) throw new Error("OpenAI API の応答本文を取得できませんでした。");
   return parseAiClassificationResult(JSON.parse(text));
+}
+
+export function isTerminalOpenAiApiError(error: unknown) {
+  return error instanceof OpenAiApiError && (error.status === 401 || error.status === 403 || error.status === 429);
 }
 
 function extractResponseText(payload: Record<string, unknown>) {
@@ -64,4 +79,13 @@ function extractResponseText(payload: Record<string, unknown>) {
     }
   }
   return parts.join("");
+}
+
+function extractErrorCode(detail: string) {
+  try {
+    const parsed = JSON.parse(detail) as { error?: { code?: unknown } };
+    return typeof parsed.error?.code === "string" ? parsed.error.code : null;
+  } catch {
+    return null;
+  }
 }

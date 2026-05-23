@@ -694,11 +694,12 @@ Source Discovery や collect で拾った候補は、OpenAI API を使って追�
 `.env` には必要に応じて以下を設定します。
 
 ```env
+AI_PROVIDER=openai
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
 ```
 
-APIキーが未設定でもアプリは停止しません。`npm run operate` や `npm run classify:ai` では「OPENAI_API_KEY 未設定のためAI分類をスキップ」と OperationRun に記録して終了します。
+`AI_PROVIDER` は `openai` / `ollama` / `disabled` を選べます。APIキーが未設定でもアプリは停止しません。`npm run operate` や `npm run classify:ai` では「OPENAI_API_KEY 未設定のためAI分類をスキップ」と OperationRun に記録して終了します。
 
 ```bash
 npm run classify:ai
@@ -708,11 +709,63 @@ npm run classify:ai
 - `/source-discovery` で AI の抽選応募ページ判定、受付中判定、理由、除外理由を確認
 - `/settings/operations` の `AI分類` ボタンで手動実行
 - `/simple` は AI が「抽選応募ページ」「受付中」「ポケカ/トレカ系」と判定した候補を優先し、AI が明確に除外した候補は通常表示から外す
+- 分類対象は `aiClassifiedAt` が未設定のものだけです。1回の実行では負荷を抑えるため、候補URLは最大5件、抽選情報は最大10件までに制限しています
 
 注意:
 - AI分類は最終判断の補助です。応募前に必ず元ページの期間、価格、利用規約を確認してください。
 - 自動応募、自動購入、ログイン自動化、CAPTCHA回避は行いません。
 - 分類対象はログイン不要で閲覧できる公開ページだけです。
+- APIキーは `.env` に置き、`.env` 自体は Git に含めません。
+
+### Discovery種別と過去記事除外
+
+候補URLは次の `discoveryType` に分けて保存します。
+
+- `current_lottery_application`: 現在応募できる抽選応募ページ
+- `ended_lottery_article`: 過去の抽選記事
+- `lottery_news_article`: 抽選に関するニュース記事
+- `official_product_page`: 公式商品ページ
+- `price_buyback_page`: 買取価格ページ
+- `sales_page`: 通常販売ページ
+- `unknown`: 判定不能
+
+`/simple` の通常表示は、`current_lottery_application` かつ AI が「抽選応募ページ」「受付中」「過去ではない」「記事ではない」と判定したものだけに絞ります。`/article/2021/11/15/...` のような古い記事URL、記事日付が30日以上前のページ、応募締切が過去のページ、ニュース記事、買取ページ、販売ページは `/simple` から外します。
+
+既存データを再判定する場合:
+
+```bash
+npm run reclassify:sources
+npm run cleanup:ended
+```
+
+`/source-discovery` では `discoveryType`、記事日付、応募締切、AI分類、除外理由、`/simple` 表示対象かどうかを確認できます。
+
+### OllamaでAI分類する
+
+OpenAI APIの課金設定を使わず、ローカルLLMでAI分類したい場合は Ollama を使えます。Ollama はインストール後、既定ではローカル API を `http://localhost:11434/api` で提供します。Ollama の structured outputs は JSON Schema を `format` に渡して使えます。
+
+セットアップ例:
+
+```bash
+ollama pull qwen3:8b
+```
+
+`.env` の設定例:
+
+```env
+AI_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3:8b
+```
+
+Ollama が起動していない場合、AI分類は落ちずに「Ollamaが起動していないためAI分類をスキップ」と記録します。ローカルLLMなのでOpenAI APIの課金は不要ですが、PC性能やモデルサイズによって分類は遅くなります。
+
+OpenAI APIとの違い:
+- `AI_PROVIDER=openai`: OpenAI APIを使うためAPI課金と有効なAPIキーが必要
+- `AI_PROVIDER=ollama`: ローカルPCのOllamaを使うためAPI課金は不要。ただしPC負荷と実行時間が増える
+- `AI_PROVIDER=disabled`: AI分類を実行しない
+
+Ollamaでも既存のAI分類スキーマを共通利用します。structured outputs が期待どおり返らない場合は、JSONを抽出・パースし、失敗時は低信頼の「要確認」扱いで保存します。
 
 ## 終了済み抽選の整理
 

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { confidenceReason, keywordScore } from "./keywordExtractor";
 import { extractListingDates } from "./dateExtractor";
 import { inferListingStatus } from "@/services/listings/listingStatusService";
+import { classifyDiscoveryType } from "@/services/discoveryClassification/rules";
 
 export type RawListingCandidate = {
   title: string;
@@ -24,12 +25,14 @@ export type NormalizedListing = {
   resultAnnouncementAt?: Date | null;
   purchaseDeadlineAt?: Date | null;
   status: string;
+  discoveryType: string;
   confidenceScore: number;
   matchedKeywords?: string | null;
   confidenceReason?: string | null;
   extractedDatesRaw?: string | null;
   normalizedUrl?: string | null;
   contentHash?: string | null;
+  articlePublishedAt?: Date | null;
   rawText?: string | null;
 };
 
@@ -81,6 +84,12 @@ export function normalizeCandidate(input: {
   const keywordResult = keywordScore(text);
   const lotteryUrl = absoluteUrl(input.candidate.url, input.sourceUrl);
   const cleanUrl = normalizedUrl(lotteryUrl);
+  const discoveryClassification = classifyDiscoveryType({
+    url: cleanUrl,
+    title: input.candidate.title,
+    rawText: text,
+    applicationEndAt: dates.applicationEndAt
+  });
 
   return {
     title: normalizeWhitespace(input.candidate.title).slice(0, 180),
@@ -103,12 +112,14 @@ export function normalizeCandidate(input: {
       title: input.candidate.title,
       rawText: text
     }),
+    discoveryType: discoveryClassification.discoveryType,
     confidenceScore: keywordResult.score,
     matchedKeywords: keywordResult.matched.join(", "),
     confidenceReason: confidenceReason(text),
     extractedDatesRaw: dates.raw.join(", "),
     normalizedUrl: cleanUrl,
     contentHash: contentHash(`${input.candidate.title}\n${input.candidate.text}`),
+    articlePublishedAt: discoveryClassification.articlePublishedAt,
     rawText: text.slice(0, 4000)
   };
 }

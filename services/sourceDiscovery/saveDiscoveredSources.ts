@@ -25,6 +25,7 @@ export async function saveDiscoveredSources(input: {
           url: candidate.url,
           description: candidate.description,
           detectedType: candidate.detectedType,
+          discoveryType: candidate.discoveryType,
           category: candidate.category,
           confidenceScore: candidate.confidenceScore,
           matchedKeywords: candidate.matchedKeywords.join(", "),
@@ -32,6 +33,7 @@ export async function saveDiscoveredSources(input: {
           providerName: candidate.providerName,
           searchUrlTemplateCandidate: candidate.searchUrlTemplateCandidate,
           requiresReview: candidate.requiresReview,
+          articlePublishedAt: candidate.articlePublishedAt,
           lastSeenAt: new Date()
         }
       });
@@ -46,6 +48,7 @@ export async function saveDiscoveredSources(input: {
           normalizedUrl: candidate.normalizedUrl,
           description: candidate.description,
           detectedType: candidate.detectedType,
+          discoveryType: candidate.discoveryType,
           category: candidate.category,
           confidenceScore: candidate.confidenceScore,
           matchedKeywords: candidate.matchedKeywords.join(", "),
@@ -53,6 +56,7 @@ export async function saveDiscoveredSources(input: {
           providerName: candidate.providerName,
           searchUrlTemplateCandidate: candidate.searchUrlTemplateCandidate,
           requiresReview: candidate.requiresReview,
+          articlePublishedAt: candidate.articlePublishedAt,
           status: "new",
           discoveredAt: new Date(),
           lastSeenAt: new Date()

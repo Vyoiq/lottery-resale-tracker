@@ -121,6 +121,7 @@ export function operationTypeLabel(type: string) {
     source_discovery: "ソース自動発見",
     price_source_discovery: "価格ソース自動発見",
     ai_classification: "AI分類",
+    reclassify_sources: "ソース再判定",
     cleanup_ended: "終了済み再判定",
     restore_backup: "バックアップ復元",
     full_run: "一括実行"
@@ -191,13 +192,13 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
     if (result.skipped) {
       return {
         success: true,
-        message: "OPENAI_API_KEY 未設定のためAI分類をスキップ"
+        message: result.skipReason ?? "AI分類をスキップ"
       };
     }
     const details = result.errorMessage ? `\n\nエラー詳細:\n${result.errorMessage}` : "";
     return {
       success: result.errorCount === 0,
-      message: `DiscoveredSource ${result.discoveredClassifiedCount}/${result.discoveredTargetCount} 件、LotteryListing ${result.listingClassifiedCount}/${result.listingTargetCount} 件を分類、エラー ${result.errorCount} 件${details}`
+      message: `provider=${result.provider} / DiscoveredSource ${result.discoveredClassifiedCount}/${result.discoveredTargetCount} 件、LotteryListing ${result.listingClassifiedCount}/${result.listingTargetCount} 件を分類、エラー ${result.errorCount} 件${details}`
     };
   }
 

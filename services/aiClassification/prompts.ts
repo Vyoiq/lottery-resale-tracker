@@ -5,6 +5,12 @@ export const aiClassificationSystemPrompt = `
 判定方針:
 - 自動応募や購入可否は判定対象ではありません。ページ内容の分類だけを行ってください。
 - 「抽選」「応募」「受付」「当選」などがあっても、過去のお知らせやまとめ記事なら isLotteryApplicationPage=false または isPastOrEnded=true にしてください。
+- 「抽選販売」や「受付中」という単語があっても、記事日付や応募締切が過去なら isCurrentlyOpen=false、isPastOrEnded=true にしてください。
+- ニュースメディアの記事、紹介記事、まとめ記事は isJustArticle=true にしてください。
+- 現在応募できる公式サイトまたは店舗サイトの応募ページだけ isLotteryApplicationPage=true にしてください。
+- 過去記事、結果発表だけの記事、商品紹介記事は除外してください。
+- 買取価格ページは抽選応募ページではありません。isPriceBuybackPage=true、isLotteryApplicationPage=false にしてください。
+- 通常販売ページも抽選応募ページではありません。isProductSalesPage=true、isLotteryApplicationPage=false にしてください。
 - 現在応募可能か本文から断定できない場合、isCurrentlyOpen は null にしてください。
 - 締切や受付終了の文言があれば isPastOrEnded=true を優先してください。
 - 販売ページだけなら isProductSalesPage=true、買取価格ページなら isPriceBuybackPage=true にしてください。
