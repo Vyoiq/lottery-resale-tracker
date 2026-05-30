@@ -1,6 +1,7 @@
 import type { DiscoveryQuery } from "@prisma/client";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
 import { classifyDiscoveryType, type DiscoveryType } from "@/services/discoveryClassification/rules";
+import { evaluateSourceUsefulness } from "./sourceUsefulness";
 import { hostName, inferSearchUrlTemplate, normalizeDiscoveredUrl } from "./queryBuilder";
 
 const watchKeywords = [
@@ -90,6 +91,13 @@ export type ClassifiedSourceCandidate = {
   providerName?: string | null;
   searchUrlTemplateCandidate?: string | null;
   requiresReview: boolean;
+  sourceUsefulness: string;
+  aiRecommendedAction: string;
+  aiCanAutoRegister: boolean;
+  aiCanAutoEnable: boolean;
+  aiTrustLevel: string;
+  aiSourceReason: string;
+  aiRiskReason?: string | null;
 };
 
 export function classifySourceCandidate(input: {
@@ -147,6 +155,19 @@ export function classifySourceCandidate(input: {
     `host: ${hostName(normalizedUrl)}`
   ].filter(Boolean);
 
+  const usefulness = evaluateSourceUsefulness({
+    title: input.title,
+    normalizedUrl,
+    description: input.description,
+    detectedType,
+    discoveryType: discoveryClassification.discoveryType,
+    confidenceScore,
+    matchedKeywords,
+    reason: reasonParts.join(" / "),
+    searchUrlTemplateCandidate: inferredTemplate.template,
+    requiresReview: inferredTemplate.requiresReview
+  });
+
   return {
     title: input.title.trim() || normalizedUrl,
     url: input.url,
@@ -161,7 +182,8 @@ export function classifySourceCandidate(input: {
     reason: [...reasonParts, discoveryClassification.excludeReason].filter(Boolean).join(" / "),
     providerName: input.providerName ?? null,
     searchUrlTemplateCandidate: inferredTemplate.template,
-    requiresReview: inferredTemplate.requiresReview
+    requiresReview: inferredTemplate.requiresReview,
+    ...usefulness
   };
 }
 

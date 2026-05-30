@@ -77,6 +77,11 @@ export default async function OperationSettingsPage() {
             </Field>
           </div>
 
+          <div className="grid gap-3 md:grid-cols-2">
+            <ToggleField name="sourceDiscoveryAutoEnableHighTrust" label="高信頼WatchSource候補を自動有効化する" checked={settings.sourceDiscoveryAutoEnableHighTrust} />
+            <ToggleField name="priceSourceDiscoveryAutoEnableHighTrust" label="高信頼PriceSource候補を自動有効化する" checked={settings.priceSourceDiscoveryAutoEnableHighTrust} />
+          </div>
+
           <div>
             <button className={buttonClass} type="submit">設定を保存</button>
           </div>

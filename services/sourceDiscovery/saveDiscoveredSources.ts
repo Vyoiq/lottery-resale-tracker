@@ -34,6 +34,13 @@ export async function saveDiscoveredSources(input: {
           searchUrlTemplateCandidate: candidate.searchUrlTemplateCandidate,
           requiresReview: candidate.requiresReview,
           articlePublishedAt: candidate.articlePublishedAt,
+          sourceUsefulness: candidate.sourceUsefulness,
+          aiRecommendedAction: candidate.aiRecommendedAction,
+          aiCanAutoRegister: candidate.aiCanAutoRegister,
+          aiCanAutoEnable: candidate.aiCanAutoEnable,
+          aiTrustLevel: candidate.aiTrustLevel,
+          aiSourceReason: candidate.aiSourceReason,
+          aiRiskReason: candidate.aiRiskReason,
           lastSeenAt: new Date()
         }
       });
@@ -57,6 +64,13 @@ export async function saveDiscoveredSources(input: {
           searchUrlTemplateCandidate: candidate.searchUrlTemplateCandidate,
           requiresReview: candidate.requiresReview,
           articlePublishedAt: candidate.articlePublishedAt,
+          sourceUsefulness: candidate.sourceUsefulness,
+          aiRecommendedAction: candidate.aiRecommendedAction,
+          aiCanAutoRegister: candidate.aiCanAutoRegister,
+          aiCanAutoEnable: candidate.aiCanAutoEnable,
+          aiTrustLevel: candidate.aiTrustLevel,
+          aiSourceReason: candidate.aiSourceReason,
+          aiRiskReason: candidate.aiRiskReason,
           status: "new",
           discoveredAt: new Date(),
           lastSeenAt: new Date()

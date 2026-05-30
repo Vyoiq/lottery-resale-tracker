@@ -15,7 +15,9 @@ export const operationSettingDefaults = {
   notificationMinProfit: 3000,
   sourceDiscoveryMode: "candidates_only",
   priceSourceDiscoveryMode: "candidates_only",
-  sourceDiscoveryAutoAddMinConfidence: 0.75
+  sourceDiscoveryAutoAddMinConfidence: 0.75,
+  sourceDiscoveryAutoEnableHighTrust: false,
+  priceSourceDiscoveryAutoEnableHighTrust: false
 };
 
 export type OperationSettings = typeof operationSettingDefaults;
@@ -27,7 +29,9 @@ const booleanKeys = new Set<OperationSettingKey>([
   "notificationsEnabled",
   "autoBackupEnabled",
   "sourceDiscoveryEnabled",
-  "priceSourceDiscoveryEnabled"
+  "priceSourceDiscoveryEnabled",
+  "sourceDiscoveryAutoEnableHighTrust",
+  "priceSourceDiscoveryAutoEnableHighTrust"
 ]);
 
 export async function getOperationSettings(client: PrismaClient = defaultPrisma): Promise<OperationSettings> {
@@ -58,6 +62,14 @@ export async function getOperationSettings(client: PrismaClient = defaultPrisma)
       operationSettingDefaults.sourceDiscoveryAutoAddMinConfidence,
       0,
       1
+    ),
+    sourceDiscoveryAutoEnableHighTrust: parseBoolean(
+      values.get("sourceDiscoveryAutoEnableHighTrust"),
+      operationSettingDefaults.sourceDiscoveryAutoEnableHighTrust
+    ),
+    priceSourceDiscoveryAutoEnableHighTrust: parseBoolean(
+      values.get("priceSourceDiscoveryAutoEnableHighTrust"),
+      operationSettingDefaults.priceSourceDiscoveryAutoEnableHighTrust
     )
   };
 }
@@ -95,7 +107,9 @@ export function operationSettingsFromForm(formData: FormData): OperationSettings
       operationSettingDefaults.sourceDiscoveryAutoAddMinConfidence,
       0,
       1
-    )
+    ),
+    sourceDiscoveryAutoEnableHighTrust: formData.get("sourceDiscoveryAutoEnableHighTrust") === "on",
+    priceSourceDiscoveryAutoEnableHighTrust: formData.get("priceSourceDiscoveryAutoEnableHighTrust") === "on"
   };
 }
 

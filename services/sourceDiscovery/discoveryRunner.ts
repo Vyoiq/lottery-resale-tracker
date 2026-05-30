@@ -135,12 +135,33 @@ async function runDiscovery(input: {
           if (!shouldAutoAddPriceSource(settings.priceSourceDiscoveryMode, source, settings.sourceDiscoveryAutoAddMinConfidence)) {
             continue;
           }
-          const added = await addDiscoveredSourceAsPriceSource(source.id, input.client);
+          const added = await addDiscoveredSourceAsPriceSource(source.id, input.client, {
+            enabled: settings.priceSourceDiscoveryAutoEnableHighTrust && source.aiCanAutoEnable
+          });
           if (added) autoAddedPriceCount += 1;
           continue;
         }
 
         if (settings.sourceDiscoveryMode === "candidates_only") continue;
+        if (!shouldAutoAddSource(settings.sourceDiscoveryMode, source, settings.sourceDiscoveryAutoAddMinConfidence)) continue;
+        const shouldEnable = settings.sourceDiscoveryAutoEnableHighTrust && source.aiCanAutoEnable;
+        if (source.aiRecommendedAction === "add_both") {
+          const watchAdded = await addDiscoveredSourceAsWatchSource(source.id, input.client, { enabled: shouldEnable });
+          const priceAdded = await addDiscoveredSourceAsPriceSource(source.id, input.client, { enabled: shouldEnable });
+          if (watchAdded) autoAddedWatchCount += 1;
+          if (priceAdded) autoAddedPriceCount += 1;
+          continue;
+        }
+        if (source.aiRecommendedAction === "add_watch_source") {
+          const added = await addDiscoveredSourceAsWatchSource(source.id, input.client, { enabled: shouldEnable });
+          if (added) autoAddedWatchCount += 1;
+          continue;
+        }
+        if (source.aiRecommendedAction === "add_price_source") {
+          const added = await addDiscoveredSourceAsPriceSource(source.id, input.client, { enabled: shouldEnable });
+          if (added) autoAddedPriceCount += 1;
+          continue;
+        }
         if (
           settings.sourceDiscoveryMode === "auto_add_high_confidence_disabled" &&
           source.confidenceScore < settings.sourceDiscoveryAutoAddMinConfidence
@@ -148,10 +169,10 @@ async function runDiscovery(input: {
           continue;
         }
         if (source.detectedType === "watch_source_candidate") {
-          const added = await addDiscoveredSourceAsWatchSource(source.id, input.client);
+          const added = await addDiscoveredSourceAsWatchSource(source.id, input.client, { enabled: false });
           if (added) autoAddedWatchCount += 1;
         } else if (source.detectedType === "price_source_candidate") {
-          const added = await addDiscoveredSourceAsPriceSource(source.id, input.client);
+          const added = await addDiscoveredSourceAsPriceSource(source.id, input.client, { enabled: false });
           if (added) autoAddedPriceCount += 1;
         }
       }
@@ -205,7 +226,7 @@ async function ensureDiscoveryQueries(
   });
 }
 
-export async function addDiscoveredSourceAsWatchSource(id: string, client: PrismaClient = defaultPrisma) {
+export async function addDiscoveredSourceAsWatchSource(id: string, client: PrismaClient = defaultPrisma, options: { enabled?: boolean } = {}) {
   const source = await client.discoveredSource.findUnique({ where: { id } });
   if (!source || source.status === "ignored") return false;
   const existing = await client.watchSource.findUnique({ where: { url: source.normalizedUrl } });
@@ -216,16 +237,18 @@ export async function addDiscoveredSourceAsWatchSource(id: string, client: Prism
         storeName: hostName(source.normalizedUrl),
         url: source.normalizedUrl,
         type: source.normalizedUrl.endsWith(".xml") || source.normalizedUrl.includes("rss") ? "rss" : "html",
-        enabled: false,
+        enabled: Boolean(options.enabled),
         memo: buildMemo(source)
       }
     });
+  } else if (options.enabled && !existing.enabled) {
+    await client.watchSource.update({ where: { id: existing.id }, data: { enabled: true } });
   }
   await client.discoveredSource.update({ where: { id }, data: { status: "added_watch_source" } });
   return true;
 }
 
-export async function addDiscoveredSourceAsPriceSource(id: string, client: PrismaClient = defaultPrisma) {
+export async function addDiscoveredSourceAsPriceSource(id: string, client: PrismaClient = defaultPrisma, options: { enabled?: boolean } = {}) {
   const source = await client.discoveredSource.findUnique({ where: { id } });
   if (!source || source.status === "ignored") return false;
   const searchUrlTemplate = source.searchUrlTemplateCandidate ?? "";
@@ -244,13 +267,15 @@ export async function addDiscoveredSourceAsPriceSource(id: string, client: Prism
         shopName: hostName(source.normalizedUrl),
         baseUrl: source.normalizedUrl,
         searchUrlTemplate,
-        enabled: false,
+        enabled: Boolean(options.enabled),
         memo: [
           buildMemo(source),
           searchUrlTemplate ? `推定検索URL: ${searchUrlTemplate}` : "検索URLテンプレートは要確認です。"
         ].join("\n\n")
       }
     });
+  } else if (options.enabled && !existing.enabled) {
+    await client.priceSource.update({ where: { id: existing.id }, data: { enabled: true } });
   }
   await client.discoveredSource.update({ where: { id }, data: { status: "added_price_source" } });
   return true;
@@ -262,10 +287,12 @@ export async function ignoreDiscoveredSource(id: string, client: PrismaClient = 
 
 function shouldAutoAddPriceSource(
   mode: string,
-  source: Pick<DiscoveredSource, "confidenceScore" | "requiresReview" | "detectedType">,
+  source: Pick<DiscoveredSource, "confidenceScore" | "requiresReview" | "detectedType" | "aiCanAutoRegister" | "aiTrustLevel" | "aiRecommendedAction">,
   minConfidence: number
 ) {
   if (mode !== "auto_add_high_confidence_disabled") return false;
+  if (!source.aiCanAutoRegister || source.aiTrustLevel !== "high") return false;
+  if (source.aiRecommendedAction !== "add_price_source" && source.aiRecommendedAction !== "add_both") return false;
   return (
     source.detectedType === "price_source_candidate" &&
     !source.requiresReview &&
@@ -273,11 +300,26 @@ function shouldAutoAddPriceSource(
   );
 }
 
+function shouldAutoAddSource(
+  mode: string,
+  source: Pick<DiscoveredSource, "confidenceScore" | "aiCanAutoRegister" | "aiTrustLevel" | "aiRecommendedAction">,
+  minConfidence: number
+) {
+  if (!source.aiCanAutoRegister) return false;
+  if (!["add_watch_source", "add_price_source", "add_both"].includes(source.aiRecommendedAction)) return false;
+  if (mode === "auto_add_disabled") return true;
+  return mode === "auto_add_high_confidence_disabled" && source.aiTrustLevel === "high" && source.confidenceScore >= minConfidence;
+}
+
 function buildMemo(source: DiscoveredSource) {
   return [
     "Source Discovery から追加しました。",
     "追加時点では enabled: false です。有効化前にURL、利用規約、アクセス頻度を確認してください。",
     source.providerName ? `provider: ${source.providerName}` : null,
+    `sourceUsefulness: ${source.sourceUsefulness}`,
+    `recommendedAction: ${source.aiRecommendedAction}`,
+    source.aiSourceReason ? `sourceReason: ${source.aiSourceReason}` : null,
+    source.aiRiskReason ? `riskReason: ${source.aiRiskReason}` : null,
     source.reason ? `検出理由: ${source.reason}` : null,
     source.description ? `説明: ${source.description}` : null
   ]

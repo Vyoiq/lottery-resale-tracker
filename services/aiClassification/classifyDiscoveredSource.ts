@@ -3,6 +3,7 @@ import { prisma as defaultPrisma } from "@/lib/prisma";
 import { stripTags } from "@/services/collectors/htmlCollector";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
 import { classifyDiscoveryType } from "@/services/discoveryClassification/rules";
+import { evaluateSourceUsefulness } from "@/services/sourceDiscovery/sourceUsefulness";
 import { discoveredSourceUserPrompt } from "./prompts";
 import { getAiModelLabel, requestAiClassification } from "./aiClient";
 
@@ -32,6 +33,27 @@ export async function classifyDiscoveredSource(source: DiscoveredSource, client:
     aiIsProductSalesPage: result.isProductSalesPage,
     aiIsPriceBuybackPage: result.isPriceBuybackPage
   });
+  const aiExcludeReason = discoveryClassification.excludeReason ?? result.excludeReason;
+  const usefulness = evaluateSourceUsefulness({
+    title: source.title,
+    normalizedUrl: source.normalizedUrl || source.url,
+    description: source.description,
+    detectedType: source.detectedType,
+    discoveryType: discoveryClassification.discoveryType,
+    confidenceScore: source.confidenceScore,
+    matchedKeywords: source.matchedKeywords,
+    reason: source.reason,
+    requiresReview: source.requiresReview,
+    searchUrlTemplateCandidate: source.searchUrlTemplateCandidate,
+    aiIsLotteryApplicationPage: result.isLotteryApplicationPage,
+    aiIsCurrentlyOpen: result.isCurrentlyOpen,
+    aiIsPastOrEnded: result.isPastOrEnded,
+    aiIsJustArticle: result.isJustArticle,
+    aiIsProductSalesPage: result.isProductSalesPage,
+    aiIsPriceBuybackPage: result.isPriceBuybackPage,
+    aiConfidenceScore: result.confidenceScore,
+    aiExcludeReason
+  });
 
   await client.discoveredSource.update({
     where: { id: source.id },
@@ -54,7 +76,8 @@ export async function classifyDiscoveredSource(source: DiscoveredSource, client:
       articlePublishedAt: discoveryClassification.articlePublishedAt,
       discoveryType: discoveryClassification.discoveryType,
       aiReason: result.reason,
-      aiExcludeReason: discoveryClassification.excludeReason ?? result.excludeReason
+      aiExcludeReason,
+      ...usefulness
     }
   });
 

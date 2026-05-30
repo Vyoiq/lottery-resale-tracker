@@ -275,6 +275,18 @@ export default async function SourceDiscoveryPage({
                       <td className="px-4 py-3">{categoryLabels[source.category] ?? source.category}</td>
                       <td className="px-4 py-3 tabular-nums">{source.confidenceScore.toFixed(2)}</td>
                       <td className="max-w-sm px-4 py-3">
+                        <div className="mb-2 grid gap-1 text-xs">
+                          <div className="flex flex-wrap gap-1">
+                            <SourceUsefulnessBadge value={source.sourceUsefulness} />
+                            <Badge tone={source.aiTrustLevel === "high" ? "success" : source.aiTrustLevel === "medium" ? "warning" : "neutral"}>
+                              trust: {source.aiTrustLevel}
+                            </Badge>
+                          </div>
+                          <div className="text-muted-foreground">推奨: {source.aiRecommendedAction}</div>
+                          <div className="text-muted-foreground">自動登録: {source.aiCanAutoRegister ? "可" : "不可"} / 自動有効化: {source.aiCanAutoEnable ? "可" : "不可"}</div>
+                          {source.aiSourceReason ? <div className="text-muted-foreground">{source.aiSourceReason}</div> : null}
+                          {source.aiRiskReason ? <div className="text-rose-700">{source.aiRiskReason}</div> : null}
+                        </div>
                         {source.aiClassifiedAt ? (
                           <div className="grid gap-1 text-xs">
                             <div className="flex flex-wrap gap-1">
@@ -355,6 +367,14 @@ function DiscoveryTypeBadge({ type }: { type: string }) {
   if (type === "ended_lottery_article" || type === "lottery_news_article") return <Badge tone="danger">{type}</Badge>;
   if (type === "sales_page" || type === "official_product_page") return <Badge tone="warning">{type}</Badge>;
   return <Badge tone="neutral">{type}</Badge>;
+}
+
+function SourceUsefulnessBadge({ value }: { value: string }) {
+  if (value === "watch_source") return <Badge tone="primary">watch_source向き</Badge>;
+  if (value === "price_source") return <Badge tone="success">price_source向き</Badge>;
+  if (value === "both") return <Badge tone="success">both</Badge>;
+  if (value === "ignore") return <Badge tone="danger">ignore</Badge>;
+  return <Badge tone="warning">manual_review</Badge>;
 }
 
 function isSimpleEligibleSource(source: {

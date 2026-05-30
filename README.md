@@ -752,6 +752,20 @@ npm run cleanup:ended
 
 `npm run operate` の最後にも、active抽選や有効なPriceSourceが0件の場合の次アクションを表示します。
 
+### Source Discovery の自動判定
+
+`DiscoveredSource` には、監視ソースや価格ソースとして使えるかを判断するための判定結果を保存します。
+
+- `sourceUsefulness`: `watch_source` / `price_source` / `both` / `ignore` / `manual_review`
+- `aiRecommendedAction`: `add_watch_source` / `add_price_source` / `add_both` / `ignore` / `manual_review`
+- `aiCanAutoRegister`: 自動登録してよいか
+- `aiCanAutoEnable`: 自動有効化してよいか
+- `aiTrustLevel`: `high` / `medium` / `low`
+- `aiSourceReason`: 登録候補と判断した理由
+- `aiRiskReason`: 除外または手動確認が必要な理由
+
+自動有効化はリスクがあるため、既定では無効です。`/settings/operations` で明示的に有効化した場合だけ、高信頼かつ低リスクの候補を `enabled: true` にできます。通常は `enabled: false` のまま登録し、人間がURLと利用規約を確認してから有効化してください。
+
 `/source-discovery` では `discoveryType`、記事日付、応募締切、AI分類、除外理由、`/simple` 表示対象かどうかを確認できます。
 
 ### OllamaでAI分類する

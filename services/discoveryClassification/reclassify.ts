@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { classifyDiscoveryType } from "./rules";
+import { evaluateSourceUsefulness } from "@/services/sourceDiscovery/sourceUsefulness";
 
 export type ReclassifyResult = {
   discoveredChecked: number;
@@ -29,19 +30,48 @@ export async function reclassifySourcesAndListings(client: PrismaClient = defaul
       aiIsProductSalesPage: source.aiIsProductSalesPage,
       aiIsPriceBuybackPage: source.aiIsPriceBuybackPage
     });
+    const aiExcludeReason = classification.excludeReason ?? source.aiExcludeReason;
+    const usefulness = evaluateSourceUsefulness({
+      title: source.title,
+      normalizedUrl: source.normalizedUrl || source.url,
+      description: source.description,
+      detectedType: source.detectedType,
+      discoveryType: classification.discoveryType,
+      confidenceScore: source.confidenceScore,
+      matchedKeywords: source.matchedKeywords,
+      reason: source.reason,
+      requiresReview: source.requiresReview,
+      searchUrlTemplateCandidate: source.searchUrlTemplateCandidate,
+      aiIsLotteryApplicationPage: source.aiIsLotteryApplicationPage,
+      aiIsCurrentlyOpen: source.aiIsCurrentlyOpen,
+      aiIsPastOrEnded: source.aiIsPastOrEnded,
+      aiIsJustArticle: source.aiIsJustArticle,
+      aiIsProductSalesPage: source.aiIsProductSalesPage,
+      aiIsPriceBuybackPage: source.aiIsPriceBuybackPage,
+      aiConfidenceScore: source.aiConfidenceScore,
+      aiExcludeReason
+    });
 
     if (
       source.discoveryType !== classification.discoveryType ||
       source.articlePublishedAt?.getTime() !== classification.articlePublishedAt?.getTime() ||
-      (classification.excludeReason && source.aiExcludeReason !== classification.excludeReason)
+      (classification.excludeReason && source.aiExcludeReason !== classification.excludeReason) ||
+      source.sourceUsefulness !== usefulness.sourceUsefulness ||
+      source.aiRecommendedAction !== usefulness.aiRecommendedAction ||
+      source.aiCanAutoRegister !== usefulness.aiCanAutoRegister ||
+      source.aiCanAutoEnable !== usefulness.aiCanAutoEnable ||
+      source.aiTrustLevel !== usefulness.aiTrustLevel ||
+      source.aiSourceReason !== usefulness.aiSourceReason ||
+      source.aiRiskReason !== usefulness.aiRiskReason
     ) {
       await client.discoveredSource.update({
         where: { id: source.id },
         data: {
           discoveryType: classification.discoveryType,
           articlePublishedAt: classification.articlePublishedAt,
-          aiExcludeReason: classification.excludeReason ?? source.aiExcludeReason,
-          confidenceScore: clamp(source.confidenceScore + classification.scoreAdjustment)
+          aiExcludeReason,
+          confidenceScore: clamp(source.confidenceScore + classification.scoreAdjustment),
+          ...usefulness
         }
       });
       discoveredUpdated += 1;

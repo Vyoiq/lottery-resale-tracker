@@ -81,6 +81,13 @@ model DiscoveredSource {
   articlePublishedAt DateTime?
   aiReason         String?
   aiExcludeReason  String?
+  sourceUsefulness String          @default("manual_review")
+  aiRecommendedAction String       @default("manual_review")
+  aiCanAutoRegister Boolean        @default(false)
+  aiCanAutoEnable Boolean          @default(false)
+  aiTrustLevel     String          @default("low")
+  aiSourceReason   String?
+  aiRiskReason     String?
   status           String          @default("new")
   discoveredAt     DateTime        @default(now())
   lastSeenAt       DateTime        @default(now())
@@ -97,6 +104,11 @@ model DiscoveredSource {
   @@index([aiIsLotteryApplicationPage])
   @@index([aiIsCurrentlyOpen])
   @@index([aiConfidenceScore])
+  @@index([sourceUsefulness])
+  @@index([aiRecommendedAction])
+  @@index([aiTrustLevel])
+  @@index([aiCanAutoRegister])
+  @@index([aiCanAutoEnable])
   @@index([status])
   @@index([discoveredAt])
   @@index([lastSeenAt])
