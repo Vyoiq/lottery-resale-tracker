@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { classifyDiscoveredSource } from "./classifyDiscoveredSource";
 import { classifyLotteryListing } from "./classifyLotteryListing";
-import { getAiProviderStatus, isTerminalAiProviderError } from "./aiClient";
+import { getAiModelLabel, getAiProviderStatus, isTerminalAiProviderError } from "./aiClient";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const sourceLimit = 5;
@@ -68,7 +68,24 @@ export async function runAiClassification(client: PrismaClient = defaultPrisma):
       discoveredClassifiedCount += 1;
     } catch (error) {
       errorCount += 1;
-      errors.push(`DiscoveredSource ${source.id}: ${error instanceof Error ? error.message : String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`DiscoveredSource ${source.id}: ${message}`);
+      if (isTimeoutLikeError(error)) {
+        await client.discoveredSource.update({
+          where: { id: source.id },
+          data: {
+            aiClassifiedAt: new Date(),
+            aiModel: getAiModelLabel(),
+            sourceUsefulness: "manual_review",
+            aiRecommendedAction: "manual_review",
+            aiCanAutoRegister: false,
+            aiCanAutoEnable: false,
+            aiTrustLevel: "low",
+            aiSourceReason: "AI分類がタイムアウトしたため手動確認に回しました。",
+            aiRiskReason: message
+          }
+        });
+      }
       if (isTerminalAiProviderError(error)) {
         terminalApiFailure = true;
         break;
@@ -103,4 +120,8 @@ export async function runAiClassification(client: PrismaClient = defaultPrisma):
     provider: providerStatus.provider,
     skipReason: null
   };
+}
+
+function isTimeoutLikeError(error: unknown) {
+  return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError" || error.message.toLowerCase().includes("timeout"));
 }

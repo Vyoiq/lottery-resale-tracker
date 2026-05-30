@@ -37,6 +37,9 @@ export default async function OperationSettingsPage() {
             <ToggleField name="autoBackupEnabled" label="自動バックアップを有効化" checked={settings.autoBackupEnabled} />
             <ToggleField name="sourceDiscoveryEnabled" label="Source Discovery を一括実行に含める" checked={settings.sourceDiscoveryEnabled} />
             <ToggleField name="priceSourceDiscoveryEnabled" label="PriceSource Discovery を一括実行に含める" checked={settings.priceSourceDiscoveryEnabled} />
+            <ToggleField name="aiSourceCuratorEnabled" label="AI Source Curatorを有効化" checked={settings.aiSourceCuratorEnabled} />
+            <ToggleField name="aiSourceCuratorAutoRegisterWatch" label="高信頼WatchSourceを自動登録" checked={settings.aiSourceCuratorAutoRegisterWatch} />
+            <ToggleField name="aiSourceCuratorAutoRegisterPrice" label="高信頼PriceSourceを自動登録" checked={settings.aiSourceCuratorAutoRegisterPrice} />
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -80,6 +83,12 @@ export default async function OperationSettingsPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <ToggleField name="sourceDiscoveryAutoEnableHighTrust" label="高信頼WatchSource候補を自動有効化する" checked={settings.sourceDiscoveryAutoEnableHighTrust} />
             <ToggleField name="priceSourceDiscoveryAutoEnableHighTrust" label="高信頼PriceSource候補を自動有効化する" checked={settings.priceSourceDiscoveryAutoEnableHighTrust} />
+            <Field label="AI Source Curator 自動登録件数上限">
+              <input className={inputClass} name="aiSourceCuratorRegisterLimit" type="number" min="1" defaultValue={settings.aiSourceCuratorRegisterLimit} />
+            </Field>
+            <Field label="AI Source Curator 自動有効化件数上限">
+              <input className={inputClass} name="aiSourceCuratorEnableLimit" type="number" min="0" defaultValue={settings.aiSourceCuratorEnableLimit} />
+            </Field>
           </div>
 
           <div>
@@ -98,6 +107,7 @@ export default async function OperationSettingsPage() {
           <TaskButton type="source_discovery" label="ソース自動発見" />
           <TaskButton type="price_source_discovery" label="価格ソース自動発見" />
           <TaskButton type="ai_classification" label="AI分類" />
+          <TaskButton type="source_curator" label="AI Source Curator" />
           <form action={cleanupEndedListingsAction}>
             <button className={secondaryButtonClass} type="submit">終了済みを再判定</button>
           </form>

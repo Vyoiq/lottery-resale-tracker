@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ignoreLotteryListing, runPriceCheckForListingAction, setApplicationMilestone } from "@/lib/actions";
+import { ignoreLotteryListing, runPriceCheckForListingAction, runSourceCuratorAction, setApplicationMilestone } from "@/lib/actions";
 import { applicationStatusLabels, dateOnly, multiple, percent, priceStatusLabels, yen } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
@@ -262,6 +262,11 @@ function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<
         <Link href="/source-discovery?quickFilter=price" className={secondaryButtonClass}>PriceSource Discoveryを確認</Link>
         <Link href="/sources" className={secondaryButtonClass}>WatchSourceを有効化</Link>
         <Link href="/price-sources" className={secondaryButtonClass}>PriceSourceを有効化</Link>
+        {diagnostics.currentDiscoveryCandidateCount > 0 || diagnostics.priceDiscoveryCandidateCount > 0 ? (
+          <form action={runSourceCuratorAction}>
+            <button className={buttonClass} type="submit">AI Source Curatorを実行</button>
+          </form>
+        ) : null}
         <Link href="/settings/operations" className={buttonClass}>運用タスクを実行</Link>
       </div>
       <div className="mt-3 text-xs leading-5 text-amber-800">

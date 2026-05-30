@@ -9,6 +9,7 @@ import {
   ignoreDiscoveredSourceAction,
   runPriceSourceDiscoveryAction,
   runAiClassificationAction,
+  runSourceCuratorAction,
   runSourceDiscoveryAction,
   toggleDiscoveryQueryAction
 } from "@/lib/actions";
@@ -126,6 +127,9 @@ export default async function SourceDiscoveryPage({
         </form>
         <form action={runAiClassificationAction}>
           <button className={secondaryButtonClass} type="submit">AI分類を実行</button>
+        </form>
+        <form action={runSourceCuratorAction}>
+          <button className={secondaryButtonClass} type="submit">AI Source Curatorを実行</button>
         </form>
         <Link href="/sources" className={secondaryButtonClass}>監視ソース管理へ</Link>
         <Link href="/price-sources" className={secondaryButtonClass}>価格ソース管理へ</Link>

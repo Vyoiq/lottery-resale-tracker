@@ -119,6 +119,7 @@ npm run notifications
 npm run discover:sources
 npm run discover:prices
 npm run classify:ai
+npm run curate:sources
 npm run cleanup:placeholders
 npm run cleanup:ended
 npm run backup
@@ -767,6 +768,36 @@ npm run cleanup:ended
 自動有効化はリスクがあるため、既定では無効です。`/settings/operations` で明示的に有効化した場合だけ、高信頼かつ低リスクの候補を `enabled: true` にできます。通常は `enabled: false` のまま登録し、人間がURLと利用規約を確認してから有効化してください。
 
 `/source-discovery` では `discoveryType`、記事日付、応募締切、AI分類、除外理由、`/simple` 表示対象かどうかを確認できます。
+
+### AI Source Curator
+
+AI Source Curator は、Source Discovery と AI分類で付与された `sourceUsefulness` / `aiRecommendedAction` / `aiCanAutoRegister` / `aiTrustLevel` を見て、高信頼候補を `WatchSource` または `PriceSource` に自動登録する処理です。
+
+```bash
+npm run curate:sources
+```
+
+`npm run operate` でも、Source Discovery、PriceSource Discovery、AI分類の後に AI Source Curator を実行します。結果は `/operation-runs` に記録され、評価対象件数、WatchSource/PriceSource の自動登録件数、自動有効化件数、manual_review 件数、ignore 件数、自動登録できなかった理由を確認できます。
+
+安全仕様:
+- `example.com`、placeholder、サンプル、要確認、ノイズURLは自動登録しません。
+- 自動登録は高信頼かつ `aiCanAutoRegister=true` の候補だけです。
+- 登録時の `enabled` は既定で `false` です。
+- 自動有効化は `/settings/operations` で明示的にONにした場合だけ行います。
+- 自動有効化される場合も、高信頼かつ `aiCanAutoEnable=true` の候補だけです。
+- 自動応募、自動購入、ログイン自動化、CAPTCHA回避は行いません。
+
+設定は `/settings/operations` で変更できます。
+
+- AI Source Curator 有効/無効
+- 高信頼WatchSource自動登録
+- 高信頼PriceSource自動登録
+- 高信頼WatchSource自動有効化
+- 高信頼PriceSource自動有効化
+- 自動登録件数上限
+- 自動有効化件数上限
+
+Ollama や OpenAI API の一時的なタイムアウトで分類できなかった候補は `manual_review` 扱いになります。エラー詳細は OperationRun に残しますが、他の運用タスクが成功していれば `operate` 全体は成功扱いにします。
 
 ### OllamaでAI分類する
 

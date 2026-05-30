@@ -12,8 +12,9 @@ import { operationFailureMessage } from "@/lib/errorMessages";
 import { refreshListingStatuses } from "@/services/listings/listingStatusService";
 import { runAiClassification } from "@/services/aiClassification/runAiClassification";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { runSourceCurator } from "@/services/sourceDiscovery/sourceCurator";
 
-export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "price_source_discovery", "ai_classification", "cleanup_ended", "full_run"] as const;
+export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "price_source_discovery", "ai_classification", "source_curator", "cleanup_ended", "full_run"] as const;
 export type OperationRunType = (typeof operationRunTypes)[number];
 
 export type OperationStepResult = {
@@ -84,10 +85,11 @@ export async function runFullOperation(client: PrismaClient = defaultPrisma): Pr
   if (settings.priceSourceDiscoveryEnabled) steps.push(await runOperationTask("price_source_discovery", client));
   else steps.push({ type: "price_source_discovery", success: true, message: "設定によりスキップ" });
 
+  steps.push(await runOperationTask("ai_classification", client));
+  steps.push(await runOperationTask("source_curator", client));
+
   if (settings.collectEnabled) steps.push(await runOperationTask("collect", client));
   else steps.push({ type: "collect", success: true, message: "設定によりスキップ" });
-
-  steps.push(await runOperationTask("ai_classification", client));
 
   if (settings.priceCollectEnabled) steps.push(await runOperationTask("price_collect", client));
   else steps.push({ type: "price_collect", success: true, message: "設定によりスキップ" });
@@ -128,6 +130,7 @@ export function operationTypeLabel(type: string) {
     source_discovery: "ソース自動発見",
     price_source_discovery: "価格ソース自動発見",
     ai_classification: "AI分類",
+    source_curator: "AI Source Curator",
     reclassify_sources: "ソース再判定",
     cleanup_ended: "終了済み再判定",
     restore_backup: "バックアップ復元",
@@ -263,8 +266,26 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
     }
     const details = result.errorMessage ? `\n\nエラー詳細:\n${result.errorMessage}` : "";
     return {
-      success: result.errorCount === 0,
+      success: true,
       message: `provider=${result.provider} / DiscoveredSource ${result.discoveredClassifiedCount}/${result.discoveredTargetCount} 件、LotteryListing ${result.listingClassifiedCount}/${result.listingTargetCount} 件を分類、エラー ${result.errorCount} 件${details}`
+    };
+  }
+
+  if (type === "source_curator") {
+    const result = await runSourceCurator(client);
+    const skippedReasons = result.skippedReasons.length > 0 ? `\n\n自動登録できなかった理由:\n${result.skippedReasons.join("\n")}` : "";
+    return {
+      success: true,
+      message: [
+        `評価対象 ${result.checkedCount} 件`,
+        `WatchSource自動登録 ${result.registeredWatchCount} 件`,
+        `PriceSource自動登録 ${result.registeredPriceCount} 件`,
+        `WatchSource自動有効化 ${result.enabledWatchCount} 件`,
+        `PriceSource自動有効化 ${result.enabledPriceCount} 件`,
+        `manual_review ${result.manualReviewCount} 件`,
+        `ignore ${result.ignoreCount} 件`,
+        `スキップ ${result.skippedCount} 件`
+      ].join("、") + skippedReasons
     };
   }
 

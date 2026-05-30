@@ -590,6 +590,17 @@ export async function runAiClassificationAction() {
   revalidatePath("/operation-runs");
 }
 
+export async function runSourceCuratorAction() {
+  await runOperationTask("source_curator");
+  revalidatePath("/");
+  revalidatePath("/simple");
+  revalidatePath("/source-discovery");
+  revalidatePath("/sources");
+  revalidatePath("/price-sources");
+  revalidatePath("/operation-runs");
+  revalidatePath("/settings/operations");
+}
+
 export async function runSingleOperationTaskAction(formData: FormData) {
   const type = str(formData, "type");
   if (!operationRunTypes.includes(type as (typeof operationRunTypes)[number]) || type === "full_run") return;

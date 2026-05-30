@@ -16,8 +16,13 @@ export const operationSettingDefaults = {
   sourceDiscoveryMode: "candidates_only",
   priceSourceDiscoveryMode: "candidates_only",
   sourceDiscoveryAutoAddMinConfidence: 0.75,
+  aiSourceCuratorEnabled: true,
+  aiSourceCuratorAutoRegisterWatch: true,
+  aiSourceCuratorAutoRegisterPrice: true,
   sourceDiscoveryAutoEnableHighTrust: false,
-  priceSourceDiscoveryAutoEnableHighTrust: false
+  priceSourceDiscoveryAutoEnableHighTrust: false,
+  aiSourceCuratorRegisterLimit: 20,
+  aiSourceCuratorEnableLimit: 3
 };
 
 export type OperationSettings = typeof operationSettingDefaults;
@@ -30,6 +35,9 @@ const booleanKeys = new Set<OperationSettingKey>([
   "autoBackupEnabled",
   "sourceDiscoveryEnabled",
   "priceSourceDiscoveryEnabled",
+  "aiSourceCuratorEnabled",
+  "aiSourceCuratorAutoRegisterWatch",
+  "aiSourceCuratorAutoRegisterPrice",
   "sourceDiscoveryAutoEnableHighTrust",
   "priceSourceDiscoveryAutoEnableHighTrust"
 ]);
@@ -63,6 +71,15 @@ export async function getOperationSettings(client: PrismaClient = defaultPrisma)
       0,
       1
     ),
+    aiSourceCuratorEnabled: parseBoolean(values.get("aiSourceCuratorEnabled"), operationSettingDefaults.aiSourceCuratorEnabled),
+    aiSourceCuratorAutoRegisterWatch: parseBoolean(
+      values.get("aiSourceCuratorAutoRegisterWatch"),
+      operationSettingDefaults.aiSourceCuratorAutoRegisterWatch
+    ),
+    aiSourceCuratorAutoRegisterPrice: parseBoolean(
+      values.get("aiSourceCuratorAutoRegisterPrice"),
+      operationSettingDefaults.aiSourceCuratorAutoRegisterPrice
+    ),
     sourceDiscoveryAutoEnableHighTrust: parseBoolean(
       values.get("sourceDiscoveryAutoEnableHighTrust"),
       operationSettingDefaults.sourceDiscoveryAutoEnableHighTrust
@@ -70,6 +87,16 @@ export async function getOperationSettings(client: PrismaClient = defaultPrisma)
     priceSourceDiscoveryAutoEnableHighTrust: parseBoolean(
       values.get("priceSourceDiscoveryAutoEnableHighTrust"),
       operationSettingDefaults.priceSourceDiscoveryAutoEnableHighTrust
+    ),
+    aiSourceCuratorRegisterLimit: parseInteger(
+      values.get("aiSourceCuratorRegisterLimit"),
+      operationSettingDefaults.aiSourceCuratorRegisterLimit,
+      1
+    ),
+    aiSourceCuratorEnableLimit: parseInteger(
+      values.get("aiSourceCuratorEnableLimit"),
+      operationSettingDefaults.aiSourceCuratorEnableLimit,
+      0
     )
   };
 }
@@ -108,8 +135,21 @@ export function operationSettingsFromForm(formData: FormData): OperationSettings
       0,
       1
     ),
+    aiSourceCuratorEnabled: formData.get("aiSourceCuratorEnabled") === "on",
+    aiSourceCuratorAutoRegisterWatch: formData.get("aiSourceCuratorAutoRegisterWatch") === "on",
+    aiSourceCuratorAutoRegisterPrice: formData.get("aiSourceCuratorAutoRegisterPrice") === "on",
     sourceDiscoveryAutoEnableHighTrust: formData.get("sourceDiscoveryAutoEnableHighTrust") === "on",
-    priceSourceDiscoveryAutoEnableHighTrust: formData.get("priceSourceDiscoveryAutoEnableHighTrust") === "on"
+    priceSourceDiscoveryAutoEnableHighTrust: formData.get("priceSourceDiscoveryAutoEnableHighTrust") === "on",
+    aiSourceCuratorRegisterLimit: parseInteger(
+      readFormValue(formData, "aiSourceCuratorRegisterLimit"),
+      operationSettingDefaults.aiSourceCuratorRegisterLimit,
+      1
+    ),
+    aiSourceCuratorEnableLimit: parseInteger(
+      readFormValue(formData, "aiSourceCuratorEnableLimit"),
+      operationSettingDefaults.aiSourceCuratorEnableLimit,
+      0
+    )
   };
 }
 
