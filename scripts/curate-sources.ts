@@ -7,6 +7,7 @@ async function main() {
   console.log(`checked=${result.checkedCount}`);
   console.log(`registeredWatch=${result.registeredWatchCount}`);
   console.log(`registeredPrice=${result.registeredPriceCount}`);
+  console.log(`registeredBasePrice=${result.registeredBasePriceCount}`);
   console.log(`enabledWatch=${result.enabledWatchCount}`);
   console.log(`enabledPrice=${result.enabledPriceCount}`);
   console.log(`manualReview=${result.manualReviewCount}`);

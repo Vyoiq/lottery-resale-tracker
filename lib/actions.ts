@@ -402,6 +402,24 @@ export async function togglePriceSource(formData: FormData) {
   revalidatePath("/health");
 }
 
+export async function updatePriceSourceTemplate(formData: FormData) {
+  const id = str(formData, "id");
+  const searchUrlTemplate = str(formData, "searchUrlTemplate");
+  const source = await prisma.priceSource.findUnique({ where: { id } });
+  if (!source) return;
+  const placeholder = isPlaceholderPriceSource({ ...source, searchUrlTemplate });
+  await prisma.priceSource.update({
+    where: { id },
+    data: {
+      searchUrlTemplate,
+      enabled: placeholder || !searchUrlTemplate.includes("{keyword}") ? false : source.enabled,
+      lastError: searchUrlTemplate.includes("{keyword}") ? null : "検索URLテンプレートが未設定です"
+    }
+  });
+  revalidatePath("/price-sources");
+  revalidatePath("/health");
+}
+
 export async function updateLotteryRetailPrice(formData: FormData) {
   const id = str(formData, "id");
   const retailPrice = optionalInt(formData, "retailPrice");
@@ -632,6 +650,51 @@ export async function bulkAddDiscoveredWatchSourcesAction(formData: FormData) {
 export async function bulkAddDiscoveredPriceSourcesAction(formData: FormData) {
   const ids = formData.getAll("ids").filter((value): value is string => typeof value === "string" && value.length > 0);
   for (const id of ids) await addDiscoveredSourceAsPriceSource(id);
+  revalidateDiscoveryViews();
+}
+
+export async function bulkAddDiscoveredWatchCandidatesAction() {
+  const sources = await prisma.discoveredSource.findMany({
+    where: {
+      status: "new",
+      OR: [
+        { sourceUsefulness: { in: ["watch_source", "both"] } },
+        { aiRecommendedAction: { in: ["add_watch_source", "add_both"] } },
+        { detectedType: "watch_source_candidate" },
+        { discoveryType: "current_lottery_application" }
+      ],
+      NOT: [{ aiIsPastOrEnded: true }, { discoveryType: "ended_lottery_article" }]
+    },
+    take: 100
+  });
+  for (const source of sources) {
+    if (!placeholderSourceReason({ name: source.title, url: source.normalizedUrl, memo: source.description })) {
+      await addDiscoveredSourceAsWatchSource(source.id, prisma, { enabled: false });
+    }
+  }
+  revalidateDiscoveryViews();
+}
+
+export async function bulkAddDiscoveredPriceCandidatesAction() {
+  const sources = await prisma.discoveredSource.findMany({
+    where: {
+      status: "new",
+      OR: [
+        { sourceUsefulness: { in: ["price_source", "both"] } },
+        { aiRecommendedAction: { in: ["add_price_source", "add_both"] } },
+        { detectedType: "price_source_candidate" },
+        { discoveryType: "price_buyback_page" }
+      ],
+      NOT: [{ discoveryType: "ended_lottery_article" }]
+    },
+    orderBy: [{ searchUrlTemplateCandidate: "desc" }, { aiTrustLevel: "asc" }, { confidenceScore: "desc" }],
+    take: 100
+  });
+  for (const source of sources) {
+    if (!placeholderSourceReason({ name: source.title, url: source.normalizedUrl, memo: source.description })) {
+      await addDiscoveredSourceAsPriceSource(source.id, prisma, { enabled: false });
+    }
+  }
   revalidateDiscoveryViews();
 }
 

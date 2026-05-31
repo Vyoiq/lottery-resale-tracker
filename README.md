@@ -780,6 +780,9 @@ npm run curate:sources
 `npm run operate` でも、Source Discovery、PriceSource Discovery、AI分類の後に AI Source Curator を実行します。結果は `/operation-runs` に記録され、評価対象件数、WatchSource/PriceSource の自動登録件数、自動有効化件数、manual_review 件数、ignore 件数、自動登録できなかった理由を確認できます。
 
 安全仕様:
+- WatchSource はURLだけで登録できます。`searchUrlTemplate` は不要です。
+- PriceSource は `searchUrlTemplate` があると、そのまま自動価格取得に使えます。
+- PriceSource に `searchUrlTemplate` がない場合も、候補を baseUrl として登録します。この状態は `base_price_source_needs_template` として扱い、自動価格取得にはまだ使いません。
 - `example.com`、placeholder、サンプル、要確認、ノイズURLは自動登録しません。
 - 自動登録は高信頼かつ `aiCanAutoRegister=true` の候補だけです。
 - 登録時の `enabled` は既定で `false` です。
@@ -798,6 +801,13 @@ npm run curate:sources
 - 自動有効化件数上限
 
 Ollama や OpenAI API の一時的なタイムアウトで分類できなかった候補は `manual_review` 扱いになります。エラー詳細は OperationRun に残しますが、他の運用タスクが成功していれば `operate` 全体は成功扱いにします。
+
+PriceSource の確認:
+- `/price-sources` では `testable_price_source` と `base_price_source_needs_template` を表示します。
+- `base_price_source_needs_template` は baseUrl だけ登録済みの状態です。
+- 価格取得には `{keyword}` を含む `searchUrlTemplate` が必要です。
+- `/price-sources` の一覧内フォームで `searchUrlTemplate` を編集して保存できます。
+- テンプレート未設定の PriceSource はテスト取得できず、有効化もできません。
 
 ### OllamaでAI分類する
 

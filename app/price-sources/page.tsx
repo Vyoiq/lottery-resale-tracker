@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cleanupPlaceholderSourcesAction, createPriceSource, togglePriceSource } from "@/lib/actions";
+import { cleanupPlaceholderSourcesAction, createPriceSource, togglePriceSource, updatePriceSourceTemplate } from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
 import { dateTime } from "@/lib/format";
 import { placeholderSourceReason, placeholderWarningMessage } from "@/lib/sourceGuards";
@@ -16,7 +16,7 @@ export default async function PriceSourcesPage() {
     <>
       <PageHeader
         title="価格ソース"
-        description="{keyword} に商品名をURLエンコードして公開検索ページを取得します。ログイン不要の公開ページだけを登録してください。プレースホルダーURLは有効化できません。"
+        description="{keyword} を含む検索URLテンプレートがある PriceSource だけが自動価格取得に使われます。テンプレート未設定の候補は baseUrl として保持し、後で編集してください。"
       >
         <Link href="/price-sources/presets" className={secondaryButtonClass}>プリセットから追加</Link>
         <form action={cleanupPlaceholderSourcesAction}>
@@ -25,9 +25,10 @@ export default async function PriceSourcesPage() {
       </PageHeader>
 
       <Card className="mb-4 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
-        <div className="font-semibold">追加後はこの画面で有効化してください</div>
+        <div className="font-semibold">追加後はこの画面で確認してから有効化してください</div>
         <p className="mt-1">
-          `enabled` が有効な価格ソースだけが価格取得に使われます。`example.com`、`サンプル`、`プレースホルダー`、`要差し替え`、`要確認` を含むソースは安全のため有効化できません。
+          PriceSource Discovery や AI Source Curator が追加した候補は安全のため enabled: false です。
+          searchUrlTemplate が空のものは baseUrl 登録済みですが、価格取得には使えません。
         </p>
       </Card>
 
@@ -35,8 +36,8 @@ export default async function PriceSourcesPage() {
         <Card className="mb-4 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
           <div className="font-semibold">有効な実URLのPriceSourceが0件です</div>
           <p className="mt-1">
-            プレースホルダーではなく、`{"{keyword}"}` を含む検索URLテンプレートが設定されたPriceSourceを有効化してください。
-            候補がない場合は <Link href="/source-discovery?quickFilter=price" className="font-medium underline">Source Discoveryの買取価格ページ候補</Link> を確認してください。
+            プレースホルダーではなく、{"{keyword}"} を含む検索URLテンプレートが設定された PriceSource を有効化してください。
+            候補がない場合は <Link href="/source-discovery?quickFilter=price" className="font-medium underline">Source Discovery の買取価格ページ候補</Link> を確認してください。
           </p>
         </Card>
       ) : null}
@@ -45,14 +46,14 @@ export default async function PriceSourcesPage() {
         <form action={createPriceSource} className="grid gap-4 md:grid-cols-4">
           <Field label="ソース名"><input className={inputClass} name="name" required /></Field>
           <Field label="買取店名"><input className={inputClass} name="shopName" required /></Field>
-          <Field label="ベースURL"><input className={inputClass} name="baseUrl" type="url" required /></Field>
-          <Field label="検索URLテンプレート"><input className={inputClass} name="searchUrlTemplate" placeholder="https://example.com/search?q={keyword}" required /></Field>
+          <Field label="baseUrl"><input className={inputClass} name="baseUrl" type="url" required /></Field>
+          <Field label="検索URLテンプレート"><input className={inputClass} name="searchUrlTemplate" placeholder="https://example.com/search?q={keyword}" /></Field>
           <div className="md:col-span-3">
             <Field label="メモ"><textarea className={textareaClass} name="memo" /></Field>
           </div>
           <label className="flex items-end gap-2 pb-2 text-sm font-medium text-muted-foreground">
-            <input name="enabled" type="checkbox" defaultChecked />
-            有効
+            <input name="enabled" type="checkbox" />
+            有効化する
           </label>
           <div className="md:col-span-4"><button className={buttonClass} type="submit">価格ソースを追加</button></div>
         </form>
@@ -62,16 +63,16 @@ export default async function PriceSourcesPage() {
         <EmptyState
           title="価格ソースが未登録です"
           message="プリセットまたは Source Discovery から候補を追加し、URLと利用規約を確認してから有効化してください。"
-          action={<Link href="/price-sources/presets" className={secondaryButtonClass}>価格ソースプリセットを確認</Link>}
+          action={<Link href="/source-discovery?quickFilter=price" className={secondaryButtonClass}>価格ソース候補を確認</Link>}
         />
       ) : (
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[1280px] text-sm">
             <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-3">買取店名</th>
-                <th className="px-4 py-3">検索URLテンプレート</th>
-                <th className="px-4 py-3">品質</th>
+                <th className="px-4 py-3">買取店</th>
+                <th className="px-4 py-3">URL</th>
+                <th className="px-4 py-3">状態</th>
                 <th className="px-4 py-3">有効/無効</th>
                 <th className="px-4 py-3">取得状況</th>
                 <th className="px-4 py-3">メモ</th>
@@ -91,19 +92,36 @@ export default async function PriceSourcesPage() {
                       {placeholder ? <div className="mt-1"><Badge tone="danger">プレースホルダー</Badge></div> : null}
                     </td>
                     <td className="max-w-lg px-4 py-3">
-                      <div className="break-all">{source.searchUrlTemplate || "未設定"}</div>
-                      <div className="text-xs text-muted-foreground">{source.baseUrl}</div>
+                      <div className="break-all">{source.searchUrlTemplate || "検索URLテンプレート未設定"}</div>
+                      <div className="text-xs text-muted-foreground">baseUrl: {source.baseUrl}</div>
                       {placeholder ? <div className="mt-1 text-xs font-medium text-rose-700">{placeholderWarningMessage} 理由: {placeholderReason}</div> : null}
+                      {!hasTemplate ? (
+                        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs leading-5 text-amber-900">
+                          <div className="font-semibold">検索URLテンプレート未設定</div>
+                          <div>価格取得にはテンプレート設定が必要です。baseUrl は登録済みです。</div>
+                          <div>テスト取得不可。編集して searchUrlTemplate を設定してください。</div>
+                        </div>
+                      ) : null}
+                      <form action={updatePriceSourceTemplate} className="mt-2 flex gap-2">
+                        <input type="hidden" name="id" value={source.id} />
+                        <input
+                          className={inputClass}
+                          name="searchUrlTemplate"
+                          defaultValue={source.searchUrlTemplate}
+                          placeholder={`${source.baseUrl}${source.baseUrl.includes("?") ? "&" : "?"}q={keyword}`}
+                        />
+                        <button className={secondaryButtonClass} type="submit">保存</button>
+                      </form>
                     </td>
                     <td className="px-4 py-3">
                       <div className="grid gap-1">
-                        <Badge tone={placeholder ? "danger" : "success"}>{placeholder ? "プレースホルダー" : "実URL候補"}</Badge>
-                        <Badge tone={hasTemplate ? "success" : "warning"}>{hasTemplate ? "検索URLあり" : "検索URL要確認"}</Badge>
+                        <Badge tone={placeholder ? "danger" : "success"}>{placeholder ? "要差し替え" : "実URL候補"}</Badge>
+                        <Badge tone={hasTemplate ? "success" : "warning"}>{hasTemplate ? "testable_price_source" : "base_price_source_needs_template"}</Badge>
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <Badge tone={placeholder && source.enabled ? "danger" : source.enabled ? "success" : "neutral"}>
-                        {placeholder && source.enabled ? "有効（要無効化）" : source.enabled ? "有効" : "無効"}
+                        {placeholder && source.enabled ? "有効・要無効化" : source.enabled ? "有効" : "無効"}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-xs leading-5">
@@ -115,19 +133,19 @@ export default async function PriceSourcesPage() {
                     <td className="max-w-sm px-4 py-3 text-xs text-muted-foreground">{source.memo ?? "-"}</td>
                     <td className="px-4 py-3">
                       <div className="grid justify-items-end gap-2">
-                      <form action={togglePriceSource} className="flex justify-end">
-                        <input type="hidden" name="id" value={source.id} />
-                        <input type="hidden" name="enabled" value={source.enabled ? "false" : "true"} />
-                        <button
-                          className={secondaryButtonClass}
-                          type="submit"
-                          disabled={!source.enabled && (placeholder || !hasTemplate)}
-                          title={!source.enabled && placeholder ? placeholderWarningMessage : !hasTemplate ? "検索URLテンプレートを設定してください" : undefined}
-                        >
-                          {source.enabled ? "無効化" : placeholder ? "有効化不可" : !hasTemplate ? "要確認" : "有効化"}
-                        </button>
-                      </form>
-                      <PriceSourceTestButton priceSourceId={source.id} />
+                        <form action={togglePriceSource} className="flex justify-end">
+                          <input type="hidden" name="id" value={source.id} />
+                          <input type="hidden" name="enabled" value={source.enabled ? "false" : "true"} />
+                          <button
+                            className={secondaryButtonClass}
+                            type="submit"
+                            disabled={!source.enabled && (placeholder || !hasTemplate)}
+                            title={!source.enabled && placeholder ? placeholderWarningMessage : !hasTemplate ? "検索URLテンプレートを設定してください" : undefined}
+                          >
+                            {source.enabled ? "無効化" : placeholder ? "有効化不可" : !hasTemplate ? "要テンプレート" : "有効化"}
+                          </button>
+                        </form>
+                        {hasTemplate ? <PriceSourceTestButton priceSourceId={source.id} /> : <div className="text-xs text-amber-700">テスト取得不可</div>}
                       </div>
                     </td>
                   </tr>

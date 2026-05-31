@@ -270,7 +270,9 @@ export async function addDiscoveredSourceAsPriceSource(id: string, client: Prism
         enabled: Boolean(options.enabled),
         memo: [
           buildMemo(source),
-          searchUrlTemplate ? `推定検索URL: ${searchUrlTemplate}` : "検索URLテンプレートは要確認です。"
+          searchUrlTemplate
+            ? `PriceSource type: testable_price_source\n推定検索URL: ${searchUrlTemplate}`
+            : "PriceSource type: base_price_source_needs_template\n検索URLテンプレートは要確認です。"
         ].join("\n\n")
       }
     });

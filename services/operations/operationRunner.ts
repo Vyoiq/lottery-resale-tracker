@@ -140,7 +140,7 @@ export function operationTypeLabel(type: string) {
 
 async function getOperationNextActions(client: PrismaClient) {
   const now = new Date();
-  const [activeListingCount, enabledWatchSources, enabledPriceSources, currentDiscoveryCandidateCount, priceDiscoveryCandidateCount] = await Promise.all([
+  const [activeListingCount, enabledWatchSources, enabledPriceSources, allPriceSources, currentDiscoveryCandidateCount, priceDiscoveryCandidateCount] = await Promise.all([
     client.lotteryListing.count({
       where: {
         status: "active",
@@ -150,6 +150,7 @@ async function getOperationNextActions(client: PrismaClient) {
     }),
     client.watchSource.findMany({ where: { enabled: true } }),
     client.priceSource.findMany({ where: { enabled: true } }),
+    client.priceSource.findMany(),
     client.discoveredSource.count({
       where: {
         status: "new",
@@ -177,6 +178,9 @@ async function getOperationNextActions(client: PrismaClient) {
   const enabledRealPriceSourceCount = enabledPriceSources.filter(
     (source) => !placeholderSourceReason(source) && source.searchUrlTemplate.includes("{keyword}")
   ).length;
+  const basePriceSourceNeedsTemplateCount = allPriceSources.filter(
+    (source) => !placeholderSourceReason(source) && !source.searchUrlTemplate.includes("{keyword}")
+  ).length;
 
   const actions: string[] = [];
   if (activeListingCount === 0) {
@@ -193,6 +197,9 @@ async function getOperationNextActions(client: PrismaClient) {
   }
   if (priceDiscoveryCandidateCount > 0 && enabledRealPriceSourceCount === 0) {
     actions.push(`買取価格ページ候補が ${priceDiscoveryCandidateCount} 件あります。searchUrlTemplateがある候補を優先してPriceSourceに追加してください。`);
+  }
+  if (basePriceSourceNeedsTemplateCount > 0 && enabledRealPriceSourceCount === 0) {
+    actions.push(`PriceSource候補はありますが、searchUrlTemplate未推定のためbaseUrl登録に留まっています。/price-sources で searchUrlTemplate を設定してください。対象 ${basePriceSourceNeedsTemplateCount} 件`);
   }
   return actions;
 }
@@ -280,6 +287,7 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
         `評価対象 ${result.checkedCount} 件`,
         `WatchSource自動登録 ${result.registeredWatchCount} 件`,
         `PriceSource自動登録 ${result.registeredPriceCount} 件`,
+        `searchUrlTemplateなしでbaseUrl登録 ${result.registeredBasePriceCount} 件`,
         `WatchSource自動有効化 ${result.enabledWatchCount} 件`,
         `PriceSource自動有効化 ${result.enabledPriceCount} 件`,
         `manual_review ${result.manualReviewCount} 件`,

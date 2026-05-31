@@ -1,8 +1,16 @@
 const placeholderTokens = ["example.com", "placeholder", "サンプル", "プレースホルダー", "要差し替え", "要確認"];
+const nonPlaceholderPhrases = [
+  "検索urlテンプレートは要確認です。",
+  "検索urlテンプレートは要確認",
+  "検索urlテンプレート未設定です。",
+  "検索urlテンプレート未設定",
+  "searchurltemplate needs template"
+];
 
 export function placeholderReason(value: string | null | undefined) {
   if (!value) return null;
-  const lowered = value.toLowerCase();
+  let lowered = value.toLowerCase();
+  for (const phrase of nonPlaceholderPhrases) lowered = lowered.replaceAll(phrase, "");
   const matched = placeholderTokens.find((token) => lowered.includes(token.toLowerCase()));
   return matched ? `プレースホルダー判定キーワード「${matched}」を含むため` : null;
 }

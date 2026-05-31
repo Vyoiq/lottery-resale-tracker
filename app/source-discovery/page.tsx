@@ -2,7 +2,9 @@ import Link from "next/link";
 import {
   addDiscoveredPriceSourceAction,
   addDiscoveredWatchSourceAction,
+  bulkAddDiscoveredPriceCandidatesAction,
   bulkAddDiscoveredPriceSourcesAction,
+  bulkAddDiscoveredWatchCandidatesAction,
   bulkAddDiscoveredWatchSourcesAction,
   bulkIgnoreDiscoveredSourcesAction,
   createDiscoveryQueryAction,
@@ -236,6 +238,9 @@ export default async function SourceDiscoveryPage({
           <div className="mb-3 flex flex-wrap justify-end gap-2">
             <button className={secondaryButtonClass} formAction={bulkAddDiscoveredWatchSourcesAction} type="submit">選択をWatchSource登録</button>
             <button className={secondaryButtonClass} formAction={bulkAddDiscoveredPriceSourcesAction} type="submit">選択をPriceSource登録</button>
+            <button className={secondaryButtonClass} formAction={bulkAddDiscoveredWatchCandidatesAction} type="submit">WatchSource候補を一括登録</button>
+            <button className={secondaryButtonClass} formAction={bulkAddDiscoveredPriceCandidatesAction} type="submit">PriceSource候補を一括登録</button>
+            <button className={secondaryButtonClass} formAction={bulkAddDiscoveredPriceCandidatesAction} type="submit">テンプレートなしもbaseUrl登録</button>
             <button className={secondaryButtonClass} formAction={bulkIgnoreDiscoveredSourcesAction} type="submit">選択を無視</button>
           </div>
           <Card className="overflow-x-auto">
