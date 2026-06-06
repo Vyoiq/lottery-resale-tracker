@@ -123,6 +123,37 @@ export async function runAutoPilot(
     lines.push(`最終的に /simple に表示可能な候補 ${simpleEligibleCount} 件`);
     if (nextActions.length > 0) lines.push(`次に必要なアクション:\n${nextActions.map((action) => `- ${action}`).join("\n")}`);
 
+    const solved = [
+      sourceDiscovery.foundCount > 0 ? `Source Discoveryで候補 ${sourceDiscovery.foundCount} 件を整理` : null,
+      priceDiscovery.foundCount > 0 ? `PriceSource Discoveryで候補 ${priceDiscovery.foundCount} 件を整理` : null,
+      curator.registeredWatchCount + curator.registeredPriceCount + curator.registeredBasePriceCount > 0
+        ? `WatchSource / PriceSource を ${curator.registeredWatchCount + curator.registeredPriceCount + curator.registeredBasePriceCount} 件自動登録`
+        : null,
+      templates.inferredCount + curator.templateInferenceSuccessCount > 0
+        ? `searchUrlTemplateを ${templates.inferredCount + curator.templateInferenceSuccessCount} 件推定`
+        : null,
+      safe.watchAutoEnabledCount + safe.priceAutoEnabledCount > 0
+        ? `安全チェック済みソースを ${safe.watchAutoEnabledCount + safe.priceAutoEnabledCount} 件自動有効化`
+        : null,
+      collect.newListingCount + collect.updatedListingCount > 0 ? `抽選情報を ${collect.newListingCount + collect.updatedListingCount} 件保存/更新` : null,
+      prices.newPriceCount + prices.updatedPriceCount > 0 ? `価格候補を ${prices.newPriceCount + prices.updatedPriceCount} 件保存/更新` : null
+    ].filter(Boolean);
+    const unresolved = [
+      simpleEligibleCount === 0 ? "/simple表示候補はまだ0件です" : null,
+      safe.watchAutoEnabledCount + safe.priceAutoEnabledCount === 0 ? "安全条件を満たす自動有効化候補がありません" : null,
+      prices.errorMessage?.includes("有効な実URLのPriceSource") ? "有効な価格ソースがまだありません" : null,
+      collect.errorCount > 0 ? `抽選情報収集でエラー ${collect.errorCount} 件` : null,
+      prices.errorCount > 0 ? `価格取得でエラー ${prices.errorCount} 件` : null
+    ].filter(Boolean);
+    const manual = [
+      ...safe.skippedReasons.slice(0, 8),
+      ...nextActions.filter((action) => action.includes("自動処理では安全に有効化できませんでした") || action.includes("manual_review"))
+    ];
+    lines.push(`自動で解決できたこと:\n${solved.length > 0 ? solved.map((item) => `- ${item}`).join("\n") : "- 今回は安全に自動解決できる項目がありませんでした"}`);
+    lines.push(`まだ解決できていないこと:\n${unresolved.length > 0 ? unresolved.map((item) => `- ${item}`).join("\n") : "- なし"}`);
+    lines.push(`人間の確認が必要なもの:\n${manual.length > 0 ? manual.map((item) => `- ${item}`).join("\n") : "- なし"}`);
+    lines.push("次に見る画面:\n- /simple\n- /source-discovery\n- /price-sources");
+
     const message = lines.join("\n");
     await client.operationRun.update({
       where: { id: run.id },

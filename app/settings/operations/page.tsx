@@ -45,6 +45,8 @@ export default async function OperationSettingsPage() {
             <ToggleField name="autoPilotSafeEnableOnly" label="安全チェック済みのみ自動有効化" checked={settings.autoPilotSafeEnableOnly} />
           </div>
 
+            <ToggleField name="autoPilotRunWhenNoWatchSource" label="有効WatchSourceが0件ならAuto Pilotを自動実行" checked={settings.autoPilotRunWhenNoWatchSource} />
+            <ToggleField name="autoPilotRunWhenNoPriceSource" label="有効PriceSourceが0件ならAuto Pilotを自動実行" checked={settings.autoPilotRunWhenNoPriceSource} />
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <Field label="抽選情報収集の実行間隔（分）">
               <input className={inputClass} name="collectIntervalMinutes" type="number" min="1" defaultValue={settings.collectIntervalMinutes} />

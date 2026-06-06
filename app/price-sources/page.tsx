@@ -4,6 +4,7 @@ import {
   createPriceSource,
   inferAllPriceSourceTemplatesAction,
   inferPriceSourceTemplateAction,
+  runAutoPilotAction,
   togglePriceSource,
   updatePriceSourceTemplate
 } from "@/lib/actions";
@@ -35,14 +36,27 @@ export default async function PriceSourcesPage() {
       </PageHeader>
 
       <Card className="mb-4 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
+        <div className="font-semibold">Auto Pilotが価格ソース候補を自動整理します</div>
+        <p className="mt-1">候補探索、searchUrlTemplate推定、テスト取得、安全チェックを行い、条件を満たすものだけ自動有効化します。</p>
+      </Card>
+
+      {false ? <Card className="mb-4 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
         <div className="font-semibold">追加後はこの画面で確認してから有効化してください</div>
         <p className="mt-1">
           PriceSource Discovery や AI Source Curator が追加した候補は安全のため enabled: false です。
           searchUrlTemplate が空のものは baseUrl 登録済みですが、価格取得には使えません。
         </p>
-      </Card>
+      </Card> : null}
 
       {enabledRealSourceCount === 0 ? (
+        <Card className="mb-4 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
+          <div className="font-semibold">有効な価格ソースがありません。Auto Pilotで価格ソース候補を自動探索できます。</div>
+          <p className="mt-1">価格ソース候補を自動探索し、テンプレート推定とテスト取得を行います。安全チェック済みの候補だけ自動有効化します。</p>
+          <form action={runAutoPilotAction} className="mt-3">
+            <button className={buttonClass} type="submit">Auto Pilotで価格ソースを自動探索する</button>
+          </form>
+        </Card>
+      ) : false && enabledRealSourceCount === 0 ? (
         <Card className="mb-4 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
           <div className="font-semibold">有効な実URLのPriceSourceが0件です</div>
           <p className="mt-1">
@@ -70,6 +84,16 @@ export default async function PriceSourcesPage() {
       </Card>
 
       {sources.length === 0 ? (
+        <EmptyState
+          title="価格ソースはまだ登録されていません"
+          message="Auto Pilotで買取価格ページ候補を自動探索し、テンプレート推定とテスト取得まで進めます。手動追加は最後の手段です。"
+          action={
+            <form action={runAutoPilotAction}>
+              <button className={buttonClass} type="submit">Auto Pilotで価格ソースを自動探索する</button>
+            </form>
+          }
+        />
+      ) : false && sources.length === 0 ? (
         <EmptyState
           title="価格ソースが未登録です"
           message="プリセットまたは Source Discovery から候補を追加し、URLと利用規約を確認してから有効化してください。"

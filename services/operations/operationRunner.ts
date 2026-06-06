@@ -189,6 +189,24 @@ async function getOperationNextActions(client: PrismaClient) {
 
   const actions: string[] = [];
   if (activeListingCount === 0) {
+    actions.push("active抽選が0件です。Auto Pilotで候補発見、AI分類、安全チェックまで自動復旧を試せます。");
+  }
+  if (enabledRealWatchSourceCount === 0) {
+    actions.push("有効な実URLのWatchSourceが0件です。Auto Pilotで安全な監視候補を自動探索できます。");
+  }
+  if (enabledRealPriceSourceCount === 0) {
+    actions.push("有効なPriceSourceが0件です。Auto Pilotで価格ソース候補、テンプレート推定、テスト取得を自動整理できます。");
+  }
+  if (currentDiscoveryCandidateCount > 0) {
+    actions.push(`未登録の現在受付中候補が ${currentDiscoveryCandidateCount} 件あります。Auto Pilotが安全条件を満たすものだけ登録・有効化します。`);
+  }
+  if (priceDiscoveryCandidateCount > 0 && enabledRealPriceSourceCount === 0) {
+    actions.push(`買取価格ページ候補が ${priceDiscoveryCandidateCount} 件あります。Auto PilotがsearchUrlTemplate推定とテスト取得を行います。`);
+  }
+  if (basePriceSourceNeedsTemplateCount > 0 && enabledRealPriceSourceCount === 0) {
+    actions.push(`自動処理では安全に有効化できませんでした。理由: searchUrlTemplateを推定できないPriceSourceが ${basePriceSourceNeedsTemplateCount} 件あります。`);
+  }
+  if (activeListingCount === 0) {
     actions.push("active抽選が0件です。Source Discoveryを実行し、/source-discovery?quickFilter=current で現在受付中候補を確認してください。");
   }
   if (enabledRealWatchSourceCount === 0) {
@@ -206,7 +224,16 @@ async function getOperationNextActions(client: PrismaClient) {
   if (basePriceSourceNeedsTemplateCount > 0 && enabledRealPriceSourceCount === 0) {
     actions.push(`PriceSource候補はありますが、searchUrlTemplate未推定のためbaseUrl登録に留まっています。/price-sources で searchUrlTemplate を設定してください。対象 ${basePriceSourceNeedsTemplateCount} 件`);
   }
-  return actions;
+  return actions.filter(
+    (action) =>
+      !action.includes("/source-discovery") &&
+      !action.includes("/sources") &&
+      !action.includes("/price-sources") &&
+      !action.includes("追加してください") &&
+      !action.includes("確認してください") &&
+      !action.includes("Source Discovery繧") &&
+      !action.includes("PriceSource縺ｫ霑ｽ蜉")
+  );
 }
 
 async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, client: PrismaClient, options: OperationTaskOptions) {

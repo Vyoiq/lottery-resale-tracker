@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { ignoreLotteryListing, inferAllPriceSourceTemplatesAction, runAutoPilotAction, runPriceCheckForListingAction, runSourceCuratorAction, setApplicationMilestone } from "@/lib/actions";
 import { applicationStatusLabels, dateOnly, multiple, percent, priceStatusLabels, yen } from "@/lib/format";
+import { getOperationSettings } from "@/lib/appSettings";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
 import { isAllowedAmazonDiscoveryType, isAmazonExcludedDiscoveryType } from "@/services/discoveryClassification/rules";
-import { runAutoPilotIfAllowed } from "@/services/operations/autoPilotRunner";
+import { runAutoPilot } from "@/services/operations/autoPilotRunner";
 import { Badge, buttonClass, Card, EmptyState, inputClass, PageHeader, secondaryButtonClass, smallButtonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -224,12 +225,18 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
   const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
   const hideIgnored = boolParam(searchParams, "hideIgnored", true);
-  let [listings, diagnostics] = await Promise.all([
+  let [listings, diagnostics, operationSettings] = await Promise.all([
     getSimpleListings(searchParams),
-    getSimpleDiagnostics()
+    getSimpleDiagnostics(),
+    getOperationSettings()
   ]);
-  if (listings.length === 0) {
-    const autopilot = await runAutoPilotIfAllowed(prisma);
+  const shouldRunAutoPilot =
+    (listings.length === 0 && operationSettings.autoPilotRunOnEmptySimple) ||
+    (diagnostics.enabledRealWatchSourceCount === 0 && operationSettings.autoPilotRunWhenNoWatchSource) ||
+    (diagnostics.enabledRealPriceSourceCount === 0 && operationSettings.autoPilotRunWhenNoPriceSource);
+
+  if (shouldRunAutoPilot) {
+    const autopilot = await runAutoPilot(prisma, { force: false, trigger: "simple_auto_recovery" });
     if (!autopilot.skipped) {
       [listings, diagnostics] = await Promise.all([
         getSimpleListings(searchParams),
@@ -257,7 +264,25 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </Card>
       ) : null}
 
+      {diagnostics.enabledRealWatchSourceCount === 0 ? (
+        <Card className="mb-5 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
+          <div className="font-semibold">有効な監視ソースがありません。Auto Pilotで安全な候補を自動探索できます</div>
+          <div className="mt-1">
+            候補発見、AI分類、WatchSource登録、安全チェックをまとめて行い、条件を満たすものだけ自動有効化します。自動応募・自動購入は行いません。
+          </div>
+        </Card>
+      ) : null}
+
       {diagnostics.enabledRealPriceSourceCount === 0 ? (
+        <Card className="mb-5 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
+          <div className="font-semibold">有効な価格ソースがありません。Auto Pilotで価格ソース候補を自動整理できます</div>
+          <div className="mt-1">
+            価格ソース候補の探索、searchUrlTemplate推定、テスト取得、安全チェックをまとめて行い、条件を満たすものだけ自動有効化します。
+          </div>
+        </Card>
+      ) : null}
+
+      {false && diagnostics.enabledRealPriceSourceCount === 0 ? (
         <Card className="mb-5 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
           <div className="font-semibold">有効な実URLのPriceSourceがありません</div>
           <div className="mt-1">
@@ -294,7 +319,7 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </form>
       </Card>
 
-      {listings.length === 0 ? <SimpleEmptyGuidance diagnostics={diagnostics} /> : null}
+      {listings.length === 0 ? <SimpleEmptyAutoPilotGuidance diagnostics={diagnostics} /> : null}
 
       {false && listings.length === 0 ? (
         <EmptyState
@@ -310,6 +335,56 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </div>
       )}
     </>
+  );
+}
+
+function SimpleEmptyAutoPilotGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<typeof getSimpleDiagnostics>> }) {
+  const causes = [
+    diagnostics.activeListingCount === 0 ? "受付中として表示できる抽選がまだありません" : null,
+    diagnostics.enabledRealWatchSourceCount === 0 ? "有効なWatchSourceがないため、Auto Pilotで監視候補を自動探索できます" : null,
+    diagnostics.enabledRealPriceSourceCount === 0 ? "有効なPriceSourceがないため、Auto Pilotで価格ソース候補を自動整理できます" : null,
+    diagnostics.watchSourceCandidateCount > 0 ? `未登録WatchSource候補: ${diagnostics.watchSourceCandidateCount}件` : null,
+    diagnostics.basePriceSourceNeedsTemplateCount > 0 ? `テンプレート未設定PriceSource: ${diagnostics.basePriceSourceNeedsTemplateCount}件` : null,
+    diagnostics.autoEnableWatchCandidateCount + diagnostics.autoEnablePriceCandidateCount > 0
+      ? `自動有効化候補: WatchSource ${diagnostics.autoEnableWatchCandidateCount}件 / PriceSource ${diagnostics.autoEnablePriceCandidateCount}件`
+      : null,
+    diagnostics.currentDiscoveryCandidateCount === 0 ? "現在受付中のDiscovery候補はまだありません" : null,
+    diagnostics.priceDiscoveryCandidateCount === 0 ? "買取価格ページ候補はまだありません" : null
+  ].filter(Boolean);
+
+  return (
+    <Card className="border-amber-200 bg-amber-50/70 p-5">
+      <h2 className="text-lg font-semibold text-amber-950">現在表示できる候補はありません</h2>
+      <p className="mt-2 text-sm leading-6 text-amber-900">
+        現在、自動で候補を探せる状態です。Auto Pilotで候補の分類、登録、テンプレート推定、安全チェック、自動有効化、価格取得までまとめて進められます。
+        安全チェック済みのものだけ有効化し、自動応募・自動購入は行いません。
+      </p>
+      <div className="mt-4 grid gap-2 text-sm text-amber-950">
+        {causes.map((cause) => (
+          <div key={cause} className="rounded-md border border-amber-200 bg-white/60 px-3 py-2">{cause}</div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <form action={runAutoPilotAction}>
+          <button className={`${buttonClass} px-5 py-3 text-base`} type="submit">Auto Pilotで自動整理する</button>
+        </form>
+        <form action={runAutoPilotAction}>
+          <button className={`${secondaryButtonClass} px-5 py-3 text-base`} type="submit">監視ソースを自動探索する</button>
+        </form>
+        <form action={runAutoPilotAction}>
+          <button className={`${secondaryButtonClass} px-5 py-3 text-base`} type="submit">価格ソースを自動探索する</button>
+        </form>
+        <Link href="/source-discovery?quickFilter=current" className={secondaryButtonClass}>Source Discovery</Link>
+        <Link href="/price-sources" className={secondaryButtonClass}>PriceSource</Link>
+        <Link href="/settings/operations" className={secondaryButtonClass}>Auto Pilot設定</Link>
+      </div>
+      <div className="mt-3 text-xs leading-5 text-amber-800">
+        現在の状態: active抽選 {diagnostics.activeListingCount}件 / 有効WatchSource {diagnostics.enabledRealWatchSourceCount}件 /
+        有効PriceSource {diagnostics.enabledRealPriceSourceCount}件 / 未登録WatchSource候補 {diagnostics.watchSourceCandidateCount}件 /
+        テンプレート未設定PriceSource {diagnostics.basePriceSourceNeedsTemplateCount}件 / 自動有効化候補 {diagnostics.autoEnableWatchCandidateCount + diagnostics.autoEnablePriceCandidateCount}件 /
+        受付中候補 {diagnostics.currentDiscoveryCandidateCount}件 / 価格候補 {diagnostics.priceDiscoveryCandidateCount}件
+      </div>
+    </Card>
   );
 }
 

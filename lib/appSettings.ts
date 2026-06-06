@@ -30,6 +30,8 @@ export const operationSettingDefaults = {
   autoDisableFailureThreshold: 3,
   autoPilotEnabled: true,
   autoPilotRunOnEmptySimple: false,
+  autoPilotRunWhenNoWatchSource: false,
+  autoPilotRunWhenNoPriceSource: false,
   autoPilotMaxDiscoveryCount: 80,
   autoPilotMaxAiClassifications: 5,
   autoPilotMaxAutoRegister: 20,
@@ -60,6 +62,8 @@ const booleanKeys = new Set<OperationSettingKey>([
   "safeAutoEnablePriceSources",
   "autoPilotEnabled",
   "autoPilotRunOnEmptySimple",
+  "autoPilotRunWhenNoWatchSource",
+  "autoPilotRunWhenNoPriceSource",
   "autoPilotSafeEnableOnly"
 ]);
 
@@ -125,6 +129,8 @@ export async function getOperationSettings(client: PrismaClient = defaultPrisma)
     ),
     autoPilotEnabled: parseBoolean(values.get("autoPilotEnabled"), operationSettingDefaults.autoPilotEnabled),
     autoPilotRunOnEmptySimple: parseBoolean(values.get("autoPilotRunOnEmptySimple"), operationSettingDefaults.autoPilotRunOnEmptySimple),
+    autoPilotRunWhenNoWatchSource: parseBoolean(values.get("autoPilotRunWhenNoWatchSource"), operationSettingDefaults.autoPilotRunWhenNoWatchSource),
+    autoPilotRunWhenNoPriceSource: parseBoolean(values.get("autoPilotRunWhenNoPriceSource"), operationSettingDefaults.autoPilotRunWhenNoPriceSource),
     autoPilotMaxDiscoveryCount: parseInteger(values.get("autoPilotMaxDiscoveryCount"), operationSettingDefaults.autoPilotMaxDiscoveryCount, 1),
     autoPilotMaxAiClassifications: parseInteger(
       values.get("autoPilotMaxAiClassifications"),
@@ -208,6 +214,8 @@ export function operationSettingsFromForm(formData: FormData): OperationSettings
     ),
     autoPilotEnabled: formData.get("autoPilotEnabled") === "on",
     autoPilotRunOnEmptySimple: formData.get("autoPilotRunOnEmptySimple") === "on",
+    autoPilotRunWhenNoWatchSource: formData.get("autoPilotRunWhenNoWatchSource") === "on",
+    autoPilotRunWhenNoPriceSource: formData.get("autoPilotRunWhenNoPriceSource") === "on",
     autoPilotMaxDiscoveryCount: parseInteger(readFormValue(formData, "autoPilotMaxDiscoveryCount"), operationSettingDefaults.autoPilotMaxDiscoveryCount, 1),
     autoPilotMaxAiClassifications: parseInteger(
       readFormValue(formData, "autoPilotMaxAiClassifications"),

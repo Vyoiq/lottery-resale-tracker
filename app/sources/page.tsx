@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cleanupPlaceholderSourcesAction, createWatchSource, toggleWatchSource } from "@/lib/actions";
+import { cleanupPlaceholderSourcesAction, createWatchSource, runAutoPilotAction, toggleWatchSource } from "@/lib/actions";
 import { sourceTypes } from "@/lib/domain";
 import { prisma } from "@/lib/prisma";
 import { dateTime, sourceTypeLabels } from "@/lib/format";
@@ -8,6 +8,7 @@ import { Badge, buttonClass, Card, EmptyState, Field, inputClass, PageHeader, se
 
 export default async function SourcesPage() {
   const sources = await prisma.watchSource.findMany({ orderBy: [{ enabled: "desc" }, { updatedAt: "desc" }] });
+  const enabledRealSourceCount = sources.filter((source) => source.enabled && !placeholderSourceReason(source)).length;
 
   return (
     <>
@@ -17,6 +18,16 @@ export default async function SourcesPage() {
           <button className={secondaryButtonClass} type="submit">プレースホルダーを無効化</button>
         </form>
       </PageHeader>
+
+      {enabledRealSourceCount === 0 ? (
+        <Card className="mb-4 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
+          <div className="font-semibold">有効な監視ソースがありません。Auto Pilotで安全な候補を自動探索できます。</div>
+          <p className="mt-1">安全チェック済みの候補だけ自動有効化します。自動応募・自動購入は行いません。</p>
+          <form action={runAutoPilotAction} className="mt-3">
+            <button className={buttonClass} type="submit">Auto Pilotで自動探索する</button>
+          </form>
+        </Card>
+      ) : null}
 
       <Card className="mb-6 p-4">
         <form action={createWatchSource} className="grid gap-4 md:grid-cols-4">
@@ -42,6 +53,16 @@ export default async function SourcesPage() {
       </Card>
 
       {sources.length === 0 ? (
+        <EmptyState
+          title="監視ソースはまだ登録されていません"
+          message="Auto Pilotで公開ページ候補を自動探索し、AI分類と安全チェックを通ったものだけ自動有効化します。手動追加は最後の手段です。"
+          action={
+            <form action={runAutoPilotAction}>
+              <button className={buttonClass} type="submit">Auto Pilotで自動探索する</button>
+            </form>
+          }
+        />
+      ) : false && sources.length === 0 ? (
         <EmptyState
           title="監視ソースが未登録です"
           message="プリセットまたは Source Discovery から候補を追加し、URLと利用規約を確認してから有効化してください。"

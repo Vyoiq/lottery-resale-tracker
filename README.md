@@ -743,6 +743,49 @@ OPENAI_MODEL=gpt-4o-mini
 npm run classify:ai
 ```
 
+## Auto Pilotによる0件時の自動復旧
+
+有効なWatchSourceやPriceSourceが0件でも、まずは `/simple` を開いて `Auto Pilotで自動整理する` を使います。Auto Pilotは候補発見、AI分類、AI Source Curator、WatchSource / PriceSource自動登録、searchUrlTemplate推定、テスト取得、安全チェック、条件を満たすソースの自動有効化までをまとめて試します。
+
+基本運用は次の流れです。
+
+1. `/simple` を開く
+2. 候補が空なら `Auto Pilotで自動整理する`
+3. `/simple` に表示された候補で定価、買取価格、利益率、ROIを見て判断する
+4. 自動処理で安全に判断できなかったものだけ `/source-discovery`、`/sources`、`/price-sources` で見る
+
+`/settings/operations` では、次の自動復旧をONにできます。
+
+- `/simple` が空ならAuto Pilotを自動実行
+- 有効WatchSourceが0件ならAuto Pilotを自動実行
+- 有効PriceSourceが0件ならAuto Pilotを自動実行
+
+自動実行は30分以内の再実行を抑制し、1回あたりのDiscovery件数、AI分類件数、自動登録件数、自動有効化件数の上限を守ります。実行結果は `OperationRun` に記録されます。
+
+手動追加や手動有効化は最後の手段です。自動処理では安全に有効化できない理由が残る場合だけ、人間が内容を見る運用にしてください。
+
+Auto Pilotが自動化する範囲:
+
+- 公開ページ/RSSの候補発見
+- AI分類
+- 監視ソース/価格ソース候補の整理
+- searchUrlTemplate推定
+- テスト取得
+- 安全チェック済みソースの `enabled=true`
+- 抽選情報収集
+- 価格取得
+- 通知生成
+
+Auto Pilotが行わないこと:
+
+- 自動応募
+- 自動購入
+- ログイン
+- CAPTCHA回避
+- 高頻度アクセス
+
+`enabled=true` になるのは、実在URL、HTTP 200、プレースホルダーではない、ノイズではない、AI信頼度が高い、テスト取得に成功しているなどの安全条件を満たす場合だけです。`example.com`、プレースホルダー、ノイズURLは有効化しません。
+
 確認場所:
 - `/source-discovery` で AI の抽選応募ページ判定、受付中判定、理由、除外理由を確認
 - `/settings/operations` の `AI分類` ボタンで手動実行

@@ -147,11 +147,15 @@ export default async function DashboardPage() {
   const latestOperationAt = latestOperationRun?.finishedAt ?? latestOperationRun?.startedAt ?? null;
   const isOperationStale = latestOperationAt ? now.getTime() - latestOperationAt.getTime() > 24 * 60 * 60 * 1000 : true;
   const setupWarnings = [
+    sourcesCount === 0 ? { title: "有効な監視ソースがありません", body: "Auto Pilotで公開ページ候補を自動探索し、安全チェック済みのものだけ自動有効化します。自動応募・自動購入は行いません。", href: "/simple", link: "Auto Pilotを使う" } : null,
+    activePriceSourceCount === 0 ? { title: "有効な価格ソースがありません", body: "Auto Pilotで価格ソース候補の探索、テンプレート推定、テスト取得まで自動整理します。安全条件を満たすものだけ有効化します。", href: "/simple", link: "Auto Pilotを使う" } : null,
     sourcesCount === 0 ? { title: "有効な監視ソースが0件です", body: "抽選情報を収集するには、監視ソースを追加して有効化してください。", href: "/sources/presets", link: "監視ソースプリセットへ" } : null,
     activePriceSourceCount === 0 ? { title: "有効な価格ソースが0件です", body: "買取価格候補を取得するには、価格ソースを追加して有効化してください。", href: "/price-sources/presets", link: "価格ソースプリセットへ" } : null,
     backupCount === 0 ? { title: "バックアップが未作成です", body: "SQLite DBの消失に備えて、初回設定後にバックアップを作成してください。", href: "/backups", link: "バックアップへ" } : null,
     isOperationStale ? { title: "最終運用実行から24時間以上経過しています", body: "毎日使う場合は、一括実行または npm run operate の定期実行を確認してください。", href: "/settings/operations", link: "運用設定へ" } : null
-  ].filter((item): item is { title: string; body: string; href: string; link: string } => Boolean(item));
+  ].filter((item): item is { title: string; body: string; href: string; link: string } =>
+    item !== null && item.href !== "/sources/presets" && item.href !== "/price-sources/presets"
+  );
 
   return (
     <>
