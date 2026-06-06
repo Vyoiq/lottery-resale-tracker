@@ -22,6 +22,12 @@ export const operationSettingDefaults = {
   sourceDiscoveryAutoEnableHighTrust: false,
   priceSourceDiscoveryAutoEnableHighTrust: false,
   priceSourceAutoEnableInferredTemplate: false,
+  safeAutoEnableWatchSources: true,
+  safeAutoEnablePriceSources: true,
+  safeAutoEnableMinTrust: "high",
+  safeAutoEnableWatchLimit: 3,
+  safeAutoEnablePriceLimit: 3,
+  autoDisableFailureThreshold: 3,
   aiSourceCuratorRegisterLimit: 20,
   aiSourceCuratorEnableLimit: 3
 };
@@ -41,7 +47,9 @@ const booleanKeys = new Set<OperationSettingKey>([
   "aiSourceCuratorAutoRegisterPrice",
   "sourceDiscoveryAutoEnableHighTrust",
   "priceSourceDiscoveryAutoEnableHighTrust",
-  "priceSourceAutoEnableInferredTemplate"
+  "priceSourceAutoEnableInferredTemplate",
+  "safeAutoEnableWatchSources",
+  "safeAutoEnablePriceSources"
 ]);
 
 export async function getOperationSettings(client: PrismaClient = defaultPrisma): Promise<OperationSettings> {
@@ -93,6 +101,16 @@ export async function getOperationSettings(client: PrismaClient = defaultPrisma)
     priceSourceAutoEnableInferredTemplate: parseBoolean(
       values.get("priceSourceAutoEnableInferredTemplate"),
       operationSettingDefaults.priceSourceAutoEnableInferredTemplate
+    ),
+    safeAutoEnableWatchSources: parseBoolean(values.get("safeAutoEnableWatchSources"), operationSettingDefaults.safeAutoEnableWatchSources),
+    safeAutoEnablePriceSources: parseBoolean(values.get("safeAutoEnablePriceSources"), operationSettingDefaults.safeAutoEnablePriceSources),
+    safeAutoEnableMinTrust: parseAutoEnableMinTrust(values.get("safeAutoEnableMinTrust"), operationSettingDefaults.safeAutoEnableMinTrust),
+    safeAutoEnableWatchLimit: parseInteger(values.get("safeAutoEnableWatchLimit"), operationSettingDefaults.safeAutoEnableWatchLimit, 0),
+    safeAutoEnablePriceLimit: parseInteger(values.get("safeAutoEnablePriceLimit"), operationSettingDefaults.safeAutoEnablePriceLimit, 0),
+    autoDisableFailureThreshold: parseInteger(
+      values.get("autoDisableFailureThreshold"),
+      operationSettingDefaults.autoDisableFailureThreshold,
+      1
     ),
     aiSourceCuratorRegisterLimit: parseInteger(
       values.get("aiSourceCuratorRegisterLimit"),
@@ -147,6 +165,24 @@ export function operationSettingsFromForm(formData: FormData): OperationSettings
     sourceDiscoveryAutoEnableHighTrust: formData.get("sourceDiscoveryAutoEnableHighTrust") === "on",
     priceSourceDiscoveryAutoEnableHighTrust: formData.get("priceSourceDiscoveryAutoEnableHighTrust") === "on",
     priceSourceAutoEnableInferredTemplate: formData.get("priceSourceAutoEnableInferredTemplate") === "on",
+    safeAutoEnableWatchSources: formData.get("safeAutoEnableWatchSources") === "on",
+    safeAutoEnablePriceSources: formData.get("safeAutoEnablePriceSources") === "on",
+    safeAutoEnableMinTrust: parseAutoEnableMinTrust(readFormValue(formData, "safeAutoEnableMinTrust"), operationSettingDefaults.safeAutoEnableMinTrust),
+    safeAutoEnableWatchLimit: parseInteger(
+      readFormValue(formData, "safeAutoEnableWatchLimit"),
+      operationSettingDefaults.safeAutoEnableWatchLimit,
+      0
+    ),
+    safeAutoEnablePriceLimit: parseInteger(
+      readFormValue(formData, "safeAutoEnablePriceLimit"),
+      operationSettingDefaults.safeAutoEnablePriceLimit,
+      0
+    ),
+    autoDisableFailureThreshold: parseInteger(
+      readFormValue(formData, "autoDisableFailureThreshold"),
+      operationSettingDefaults.autoDisableFailureThreshold,
+      1
+    ),
     aiSourceCuratorRegisterLimit: parseInteger(
       readFormValue(formData, "aiSourceCuratorRegisterLimit"),
       operationSettingDefaults.aiSourceCuratorRegisterLimit,
@@ -190,6 +226,11 @@ function parseSourceDiscoveryMode(value: string | undefined, fallback: string) {
 
 function parsePriceSourceDiscoveryMode(value: string | undefined, fallback: string) {
   if (value === "candidates_only" || value === "auto_add_high_confidence_disabled" || value === "manual_review") return value;
+  return fallback;
+}
+
+function parseAutoEnableMinTrust(value: string | undefined, fallback: string) {
+  if (value === "high" || value === "medium") return value;
   return fallback;
 }
 

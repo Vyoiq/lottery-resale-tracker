@@ -77,7 +77,7 @@ export default async function PriceSourcesPage() {
         />
       ) : (
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[1280px] text-sm">
+          <table className="w-full min-w-[1460px] text-sm">
             <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">買取店</th>
@@ -85,6 +85,7 @@ export default async function PriceSourcesPage() {
                 <th className="px-4 py-3">状態</th>
                 <th className="px-4 py-3">有効/無効</th>
                 <th className="px-4 py-3">取得状況</th>
+                <th className="px-4 py-3">自動化</th>
                 <th className="px-4 py-3">メモ</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
@@ -140,6 +141,13 @@ export default async function PriceSourcesPage() {
                       <div>成功 {source.successCount} / 失敗 {source.failureCount}</div>
                       {source.lastError ? <div className="mt-1 text-rose-700">{source.lastError}</div> : null}
                     </td>
+                    <td className="max-w-xs px-4 py-3 text-xs leading-5">
+                      {source.memo?.includes("AI自動有効化") ? <Badge tone="success">AI自動有効化</Badge> : <Badge tone="neutral">手動/未自動</Badge>}
+                      <div className="mt-1 text-muted-foreground">最終テスト成功: {dateTime(source.lastSuccessAt)}</div>
+                      <div className="text-muted-foreground">連続失敗目安: {source.failureCount}</div>
+                      {source.memo?.includes("自動停止") ? <div className="mt-1 text-rose-700">{lastAutomationLine(source.memo, "自動停止")}</div> : null}
+                      {source.memo?.includes("AI自動有効化") ? <div className="mt-1 text-emerald-700">{lastAutomationLine(source.memo, "AI自動有効化")}</div> : null}
+                    </td>
                     <td className="max-w-sm px-4 py-3 text-xs text-muted-foreground">{source.memo ?? "-"}</td>
                     <td className="px-4 py-3">
                       <div className="grid justify-items-end gap-2">
@@ -174,4 +182,12 @@ export default async function PriceSourcesPage() {
       )}
     </>
   );
+}
+
+function lastAutomationLine(memo: string | null, keyword: string) {
+  return memo
+    ?.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.includes(keyword))
+    .at(-1) ?? "";
 }

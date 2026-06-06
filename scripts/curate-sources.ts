@@ -1,4 +1,5 @@
 import { runSourceCurator } from "@/services/sourceDiscovery/sourceCurator";
+import { runSafeSourceAutomation } from "@/services/sources/safeSourceAutomation";
 import { operationFailureMessage } from "@/lib/errorMessages";
 
 async function main() {
@@ -28,6 +29,27 @@ async function main() {
   if (result.autoEnableSkippedReasons.length > 0) {
     console.log("auto enable skipped reasons:");
     for (const reason of result.autoEnableSkippedReasons) console.log(`- ${reason}`);
+  }
+
+  const safe = await runSafeSourceAutomation();
+  console.log("safe source automation finished");
+  console.log(`checkedWatch=${safe.checkedWatchCount}`);
+  console.log(`checkedPrice=${safe.checkedPriceCount}`);
+  console.log(`autoEnabledWatch=${safe.watchAutoEnabledCount}`);
+  console.log(`autoEnabledPrice=${safe.priceAutoEnabledCount}`);
+  console.log(`autoDisabledWatch=${safe.watchAutoDisabledCount}`);
+  console.log(`autoDisabledPrice=${safe.priceAutoDisabledCount}`);
+  if (safe.enabledReasons.length > 0) {
+    console.log("enabled reasons:");
+    for (const reason of safe.enabledReasons) console.log(`- ${reason}`);
+  }
+  if (safe.skippedReasons.length > 0) {
+    console.log("safe enable skipped reasons:");
+    for (const reason of safe.skippedReasons) console.log(`- ${reason}`);
+  }
+  if (safe.disabledReasons.length > 0) {
+    console.log("auto disabled reasons:");
+    for (const reason of safe.disabledReasons) console.log(`- ${reason}`);
   }
 }
 

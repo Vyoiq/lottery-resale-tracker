@@ -49,7 +49,7 @@ export default async function SourcesPage() {
         />
       ) : (
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-sm">
+          <table className="w-full min-w-[1360px] text-sm">
             <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">ソース名</th>
@@ -62,6 +62,7 @@ export default async function SourcesPage() {
                 <th className="px-4 py-3">HTTP</th>
                 <th className="px-4 py-3">取得/新規</th>
                 <th className="px-4 py-3">キーワード</th>
+                <th className="px-4 py-3">自動化</th>
                 <th className="px-4 py-3">エラー/理由</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
@@ -97,6 +98,13 @@ export default async function SourcesPage() {
                     <td className="px-4 py-3 tabular-nums">{source.lastHttpStatus ?? "-"}</td>
                     <td className="px-4 py-3 tabular-nums">{source.lastFetchedCount} / {source.lastNewListingCount}</td>
                     <td className="max-w-xs truncate px-4 py-3 text-xs text-muted-foreground">{source.lastMatchedKeywords ?? "-"}</td>
+                    <td className="max-w-xs px-4 py-3 text-xs leading-5">
+                      {source.memo?.includes("AI自動有効化") ? <Badge tone="success">AI自動有効化</Badge> : <Badge tone="neutral">手動/未自動</Badge>}
+                      <div className="mt-1 text-muted-foreground">最終テスト成功: {source.lastSuccess ? dateTime(source.lastCheckedAt) : "-"}</div>
+                      <div className="text-muted-foreground">連続失敗目安: {source.lastSuccess === false ? "1+" : "0"}</div>
+                      {source.memo?.includes("自動停止") ? <div className="mt-1 text-rose-700">{lastAutomationLine(source.memo, "自動停止")}</div> : null}
+                      {source.memo?.includes("AI自動有効化") ? <div className="mt-1 text-emerald-700">{lastAutomationLine(source.memo, "AI自動有効化")}</div> : null}
+                    </td>
                     <td className="max-w-xs px-4 py-3 text-xs text-muted-foreground">{source.lastError ?? "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
@@ -124,4 +132,12 @@ export default async function SourcesPage() {
       )}
     </>
   );
+}
+
+function lastAutomationLine(memo: string | null, keyword: string) {
+  return memo
+    ?.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.includes(keyword))
+    .at(-1) ?? "";
 }

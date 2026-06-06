@@ -84,6 +84,23 @@ export default async function OperationSettingsPage() {
             <ToggleField name="sourceDiscoveryAutoEnableHighTrust" label="高信頼WatchSource候補を自動有効化する" checked={settings.sourceDiscoveryAutoEnableHighTrust} />
             <ToggleField name="priceSourceDiscoveryAutoEnableHighTrust" label="高信頼PriceSource候補を自動有効化する" checked={settings.priceSourceDiscoveryAutoEnableHighTrust} />
             <ToggleField name="priceSourceAutoEnableInferredTemplate" label="テンプレート推定済みPriceSourceを自動有効化する" checked={settings.priceSourceAutoEnableInferredTemplate} />
+            <ToggleField name="safeAutoEnableWatchSources" label="安全チェック済みWatchSourceを自動有効化する" checked={settings.safeAutoEnableWatchSources} />
+            <ToggleField name="safeAutoEnablePriceSources" label="安全チェック済みPriceSourceを自動有効化する" checked={settings.safeAutoEnablePriceSources} />
+            <Field label="自動有効化の最低信頼度">
+              <select className={inputClass} name="safeAutoEnableMinTrust" defaultValue={settings.safeAutoEnableMinTrust}>
+                <option value="high">highのみ</option>
+                <option value="medium">high/medium</option>
+              </select>
+            </Field>
+            <Field label="WatchSource自動有効化上限">
+              <input className={inputClass} name="safeAutoEnableWatchLimit" type="number" min="0" defaultValue={settings.safeAutoEnableWatchLimit} />
+            </Field>
+            <Field label="PriceSource自動有効化上限">
+              <input className={inputClass} name="safeAutoEnablePriceLimit" type="number" min="0" defaultValue={settings.safeAutoEnablePriceLimit} />
+            </Field>
+            <Field label="自動停止する失敗回数">
+              <input className={inputClass} name="autoDisableFailureThreshold" type="number" min="1" defaultValue={settings.autoDisableFailureThreshold} />
+            </Field>
             <Field label="AI Source Curator 自動登録件数上限">
               <input className={inputClass} name="aiSourceCuratorRegisterLimit" type="number" min="1" defaultValue={settings.aiSourceCuratorRegisterLimit} />
             </Field>
@@ -109,6 +126,7 @@ export default async function OperationSettingsPage() {
           <TaskButton type="price_source_discovery" label="価格ソース自動発見" />
           <TaskButton type="ai_classification" label="AI分類" />
           <TaskButton type="source_curator" label="AI Source Curator" />
+          <TaskButton type="safe_source_enable" label="安全チェック済みソース自動有効化" />
           <form action={cleanupEndedListingsAction}>
             <button className={secondaryButtonClass} type="submit">終了済みを再判定</button>
           </form>

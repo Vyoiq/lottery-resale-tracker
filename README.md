@@ -800,6 +800,16 @@ npm run curate:sources
 - 自動登録件数上限
 - 自動有効化件数上限
 
+安全チェック済みソースの自動有効化:
+- `npm run operate` は Source Discovery、PriceSource Discovery、AI分類、AI Source Curator の後に、安全チェック済みソースの自動有効化を実行します。
+- WatchSource は `current_lottery_application`、AI信頼度 high（設定で high/medium も可）、`aiCanAutoEnable=true`、HTTP 200、抽選/応募/受付/ポケカ/トレカ系キーワードあり、過去記事やニュース記事ではない場合だけ `enabled=true` にします。
+- PriceSource はプレースホルダーではなく、`{keyword}` を含む `searchUrlTemplate` があり、テスト取得で HTTP 200 と買取系HTMLを確認でき、AI信頼度 high（設定で high/medium も可）、`aiCanAutoEnable=true`、リスク理由なしの場合だけ `enabled=true` にします。
+- 自動有効化した場合は `memo` と OperationRun に、`searchUrlTemplate推定成功`、`テスト取得HTTP 200`、`買取系HTML確認済み`、`AI信頼度 high` などの理由を残します。
+- 既定では WatchSource / PriceSource の安全チェック済み自動有効化はON、最低信頼度は high、1回あたり上限はそれぞれ3件です。
+- 自動有効化されたソースで失敗が続く、プレースホルダー/ノイズ判定に変わる、過去記事や販売価格ページと判定される場合は自動で `enabled=false` に戻し、理由を記録します。
+- 自動有効化は公開ページの情報取得を始めるだけです。自動応募、自動購入、ログイン自動化、CAPTCHA回避は行いません。
+- 通常運用はまず `npm run operate` を実行し、`/simple` を確認する流れを推奨します。
+
 Ollama や OpenAI API の一時的なタイムアウトで分類できなかった候補は `manual_review` 扱いになります。エラー詳細は OperationRun に残しますが、他の運用タスクが成功していれば `operate` 全体は成功扱いにします。
 
 PriceSource の確認:

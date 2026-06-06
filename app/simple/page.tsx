@@ -112,7 +112,9 @@ async function getSimpleDiagnostics() {
     currentDiscoveryCandidateCount,
     priceDiscoveryCandidateCount,
     basePriceSourceNeedsTemplateCount,
-    watchSourceCandidateCount
+    watchSourceCandidateCount,
+    autoEnableWatchCandidateCount,
+    autoEnablePriceCandidateCount
   ] = await Promise.all([
     prisma.watchSource.findMany({ where: { enabled: true } }),
     prisma.priceSource.findMany({ where: { enabled: true } }),
@@ -152,6 +154,20 @@ async function getSimpleDiagnostics() {
         status: "new",
         discoveryType: "current_lottery_application"
       }
+    }),
+    prisma.watchSource.count({
+      where: {
+        enabled: false,
+        memo: { contains: "aiCanAutoEnable: true" }
+      }
+    }),
+    prisma.priceSource.count({
+      where: {
+        enabled: false,
+        searchUrlTemplate: { contains: "{keyword}" },
+        successCount: { gt: 0 },
+        memo: { contains: "aiCanAutoEnable: true" }
+      }
     })
   ]);
 
@@ -166,7 +182,9 @@ async function getSimpleDiagnostics() {
     currentDiscoveryCandidateCount,
     priceDiscoveryCandidateCount,
     basePriceSourceNeedsTemplateCount,
-    watchSourceCandidateCount
+    watchSourceCandidateCount,
+    autoEnableWatchCandidateCount,
+    autoEnablePriceCandidateCount
   };
 }
 
@@ -265,6 +283,9 @@ function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<
     diagnostics.basePriceSourceNeedsTemplateCount > 0
       ? `PriceSourceはbaseUrl登録済みですが searchUrlTemplate 未設定です: ${diagnostics.basePriceSourceNeedsTemplateCount}件`
       : null,
+    diagnostics.autoEnableWatchCandidateCount + diagnostics.autoEnablePriceCandidateCount > 0
+      ? `自動有効化候補があります: WatchSource ${diagnostics.autoEnableWatchCandidateCount}件 / PriceSource ${diagnostics.autoEnablePriceCandidateCount}件`
+      : null,
     diagnostics.currentDiscoveryCandidateCount === 0 ? "現在受付中のDiscovery候補がありません" : null,
     diagnostics.priceDiscoveryCandidateCount === 0 ? "買取価格ページ候補がありません" : null
   ].filter(Boolean);
@@ -295,10 +316,10 @@ function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<
             <button className={buttonClass} type="submit">AI Source Curatorを実行</button>
           </form>
         ) : null}
-        <Link href="/settings/operations" className={buttonClass}>運用タスクを実行</Link>
+        <Link href="/settings/operations" className={buttonClass}>operateを実行してください</Link>
       </div>
       <div className="mt-3 text-xs leading-5 text-amber-800">
-        現在の状態: active抽選 {diagnostics.activeListingCount} 件 / 有効WatchSource {diagnostics.enabledRealWatchSourceCount} 件 / 有効PriceSource {diagnostics.enabledRealPriceSourceCount} 件 / 未登録WatchSource候補 {diagnostics.watchSourceCandidateCount} 件 / テンプレート未設定PriceSource {diagnostics.basePriceSourceNeedsTemplateCount} 件 / 受付中候補 {diagnostics.currentDiscoveryCandidateCount} 件 / 価格候補 {diagnostics.priceDiscoveryCandidateCount} 件
+        現在の状態: active抽選 {diagnostics.activeListingCount} 件 / 有効WatchSource {diagnostics.enabledRealWatchSourceCount} 件 / 有効PriceSource {diagnostics.enabledRealPriceSourceCount} 件 / 未登録WatchSource候補 {diagnostics.watchSourceCandidateCount} 件 / テンプレート未設定PriceSource {diagnostics.basePriceSourceNeedsTemplateCount} 件 / 自動有効化候補 {diagnostics.autoEnableWatchCandidateCount + diagnostics.autoEnablePriceCandidateCount} 件 / 受付中候補 {diagnostics.currentDiscoveryCandidateCount} 件 / 価格候補 {diagnostics.priceDiscoveryCandidateCount} 件
       </div>
     </Card>
   );

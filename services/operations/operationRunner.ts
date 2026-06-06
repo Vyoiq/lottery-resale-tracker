@@ -13,8 +13,9 @@ import { refreshListingStatuses } from "@/services/listings/listingStatusService
 import { runAiClassification } from "@/services/aiClassification/runAiClassification";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
 import { runSourceCurator } from "@/services/sourceDiscovery/sourceCurator";
+import { runSafeSourceAutomation } from "@/services/sources/safeSourceAutomation";
 
-export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "price_source_discovery", "ai_classification", "source_curator", "cleanup_ended", "full_run"] as const;
+export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "price_source_discovery", "ai_classification", "source_curator", "safe_source_enable", "cleanup_ended", "full_run"] as const;
 export type OperationRunType = (typeof operationRunTypes)[number];
 
 export type OperationStepResult = {
@@ -87,6 +88,7 @@ export async function runFullOperation(client: PrismaClient = defaultPrisma): Pr
 
   steps.push(await runOperationTask("ai_classification", client));
   steps.push(await runOperationTask("source_curator", client));
+  steps.push(await runOperationTask("safe_source_enable", client));
 
   if (settings.collectEnabled) steps.push(await runOperationTask("collect", client));
   else steps.push({ type: "collect", success: true, message: "設定によりスキップ" });
@@ -131,6 +133,7 @@ export function operationTypeLabel(type: string) {
     price_source_discovery: "価格ソース自動発見",
     ai_classification: "AI分類",
     source_curator: "AI Source Curator",
+    safe_source_enable: "安全チェック済みソース自動有効化",
     reclassify_sources: "ソース再判定",
     cleanup_ended: "終了済み再判定",
     restore_backup: "バックアップ復元",
@@ -302,6 +305,24 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
         `ignore ${result.ignoreCount} 件`,
         `スキップ ${result.skippedCount} 件`
       ].join("、") + skippedReasons + (result.autoEnableSkippedReasons.length > 0 ? `\n\n自動有効化スキップ理由:\n${result.autoEnableSkippedReasons.join("\n")}` : "")
+    };
+  }
+
+  if (type === "safe_source_enable") {
+    const result = await runSafeSourceAutomation(client);
+    return {
+      success: true,
+      message: [
+        `WatchSource確認 ${result.checkedWatchCount} 件`,
+        `PriceSource確認 ${result.checkedPriceCount} 件`,
+        `WatchSource自動有効化 ${result.watchAutoEnabledCount} 件`,
+        `PriceSource自動有効化 ${result.priceAutoEnabledCount} 件`,
+        `WatchSource自動無効化 ${result.watchAutoDisabledCount} 件`,
+        `PriceSource自動無効化 ${result.priceAutoDisabledCount} 件`
+      ].join("、") +
+        (result.enabledReasons.length > 0 ? `\n\n自動有効化理由:\n${result.enabledReasons.join("\n")}` : "") +
+        (result.skippedReasons.length > 0 ? `\n\n自動有効化できなかった理由:\n${result.skippedReasons.join("\n")}` : "") +
+        (result.disabledReasons.length > 0 ? `\n\n自動無効化理由:\n${result.disabledReasons.join("\n")}` : "")
     };
   }
 

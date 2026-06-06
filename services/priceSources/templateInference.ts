@@ -75,7 +75,7 @@ export async function inferAndSavePriceSourceTemplate(
     }
 
     for (const candidate of candidates.slice(0, 8)) {
-      const test = await validateTemplate(candidate.template);
+      const test = await testPriceSourceTemplate(candidate.template);
       if (!test.success) {
         result.testFailedCount += 1;
         addReason(result, `${source.shopName}: ${candidate.reason} / ${test.reason}`);
@@ -163,7 +163,7 @@ export function inferTemplatesFromHtml(baseUrl: string, html: string): Candidate
   return candidates;
 }
 
-async function validateTemplate(template: string) {
+export async function testPriceSourceTemplate(template: string) {
   if (!template.includes("{keyword}")) return { success: false, reason: "{keyword} がありません", httpStatus: null as number | null };
   if (/example\.com|placeholder/i.test(template)) return { success: false, reason: "プレースホルダーURLです", httpStatus: null as number | null };
 
