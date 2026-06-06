@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { cleanupPlaceholderSourcesAction, createPriceSource, togglePriceSource, updatePriceSourceTemplate } from "@/lib/actions";
+import {
+  cleanupPlaceholderSourcesAction,
+  createPriceSource,
+  inferAllPriceSourceTemplatesAction,
+  inferPriceSourceTemplateAction,
+  togglePriceSource,
+  updatePriceSourceTemplate
+} from "@/lib/actions";
 import { prisma } from "@/lib/prisma";
 import { dateTime } from "@/lib/format";
 import { placeholderSourceReason, placeholderWarningMessage } from "@/lib/sourceGuards";
@@ -21,6 +28,9 @@ export default async function PriceSourcesPage() {
         <Link href="/price-sources/presets" className={secondaryButtonClass}>プリセットから追加</Link>
         <form action={cleanupPlaceholderSourcesAction}>
           <button className={secondaryButtonClass} type="submit">プレースホルダーを無効化</button>
+        </form>
+        <form action={inferAllPriceSourceTemplatesAction}>
+          <button className={buttonClass} type="submit">テンプレート自動推定</button>
         </form>
       </PageHeader>
 
@@ -146,6 +156,13 @@ export default async function PriceSourcesPage() {
                           </button>
                         </form>
                         {hasTemplate ? <PriceSourceTestButton priceSourceId={source.id} /> : <div className="text-xs text-amber-700">テスト取得不可</div>}
+                        {!hasTemplate ? (
+                          <form action={inferPriceSourceTemplateAction}>
+                            <input type="hidden" name="id" value={source.id} />
+                            <button className={secondaryButtonClass} type="submit">推定して保存</button>
+                          </form>
+                        ) : null}
+                        {!hasTemplate ? <div className="text-xs text-muted-foreground">推定成功後に有効化候補として表示されます</div> : null}
                       </div>
                     </td>
                   </tr>

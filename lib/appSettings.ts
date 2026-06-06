@@ -21,6 +21,7 @@ export const operationSettingDefaults = {
   aiSourceCuratorAutoRegisterPrice: true,
   sourceDiscoveryAutoEnableHighTrust: false,
   priceSourceDiscoveryAutoEnableHighTrust: false,
+  priceSourceAutoEnableInferredTemplate: false,
   aiSourceCuratorRegisterLimit: 20,
   aiSourceCuratorEnableLimit: 3
 };
@@ -39,7 +40,8 @@ const booleanKeys = new Set<OperationSettingKey>([
   "aiSourceCuratorAutoRegisterWatch",
   "aiSourceCuratorAutoRegisterPrice",
   "sourceDiscoveryAutoEnableHighTrust",
-  "priceSourceDiscoveryAutoEnableHighTrust"
+  "priceSourceDiscoveryAutoEnableHighTrust",
+  "priceSourceAutoEnableInferredTemplate"
 ]);
 
 export async function getOperationSettings(client: PrismaClient = defaultPrisma): Promise<OperationSettings> {
@@ -87,6 +89,10 @@ export async function getOperationSettings(client: PrismaClient = defaultPrisma)
     priceSourceDiscoveryAutoEnableHighTrust: parseBoolean(
       values.get("priceSourceDiscoveryAutoEnableHighTrust"),
       operationSettingDefaults.priceSourceDiscoveryAutoEnableHighTrust
+    ),
+    priceSourceAutoEnableInferredTemplate: parseBoolean(
+      values.get("priceSourceAutoEnableInferredTemplate"),
+      operationSettingDefaults.priceSourceAutoEnableInferredTemplate
     ),
     aiSourceCuratorRegisterLimit: parseInteger(
       values.get("aiSourceCuratorRegisterLimit"),
@@ -140,6 +146,7 @@ export function operationSettingsFromForm(formData: FormData): OperationSettings
     aiSourceCuratorAutoRegisterPrice: formData.get("aiSourceCuratorAutoRegisterPrice") === "on",
     sourceDiscoveryAutoEnableHighTrust: formData.get("sourceDiscoveryAutoEnableHighTrust") === "on",
     priceSourceDiscoveryAutoEnableHighTrust: formData.get("priceSourceDiscoveryAutoEnableHighTrust") === "on",
+    priceSourceAutoEnableInferredTemplate: formData.get("priceSourceAutoEnableInferredTemplate") === "on",
     aiSourceCuratorRegisterLimit: parseInteger(
       readFormValue(formData, "aiSourceCuratorRegisterLimit"),
       operationSettingDefaults.aiSourceCuratorRegisterLimit,

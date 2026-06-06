@@ -285,15 +285,23 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
       success: true,
       message: [
         `評価対象 ${result.checkedCount} 件`,
+        `baseUrl登録済みPriceSource ${result.basePriceSourceCount} 件`,
+        `WatchSource登録候補 ${result.watchCandidateCount} 件`,
         `WatchSource自動登録 ${result.registeredWatchCount} 件`,
+        `WatchSource登録成功 ${result.watchRegisterSuccessCount} 件`,
         `PriceSource自動登録 ${result.registeredPriceCount} 件`,
         `searchUrlTemplateなしでbaseUrl登録 ${result.registeredBasePriceCount} 件`,
+        `searchUrlTemplate推定成功 ${result.templateInferenceSuccessCount} 件`,
+        `searchUrlTemplate推定失敗 ${result.templateInferenceFailureCount} 件`,
+        `テスト取得成功 ${result.templateTestSuccessCount} 件`,
+        `テスト取得失敗 ${result.templateTestFailureCount} 件`,
+        `自動有効化対象 ${result.autoEnableCandidateCount} 件`,
         `WatchSource自動有効化 ${result.enabledWatchCount} 件`,
         `PriceSource自動有効化 ${result.enabledPriceCount} 件`,
         `manual_review ${result.manualReviewCount} 件`,
         `ignore ${result.ignoreCount} 件`,
         `スキップ ${result.skippedCount} 件`
-      ].join("、") + skippedReasons
+      ].join("、") + skippedReasons + (result.autoEnableSkippedReasons.length > 0 ? `\n\n自動有効化スキップ理由:\n${result.autoEnableSkippedReasons.join("\n")}` : "")
     };
   }
 

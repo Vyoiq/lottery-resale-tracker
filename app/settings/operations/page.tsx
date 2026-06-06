@@ -83,6 +83,7 @@ export default async function OperationSettingsPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <ToggleField name="sourceDiscoveryAutoEnableHighTrust" label="高信頼WatchSource候補を自動有効化する" checked={settings.sourceDiscoveryAutoEnableHighTrust} />
             <ToggleField name="priceSourceDiscoveryAutoEnableHighTrust" label="高信頼PriceSource候補を自動有効化する" checked={settings.priceSourceDiscoveryAutoEnableHighTrust} />
+            <ToggleField name="priceSourceAutoEnableInferredTemplate" label="テンプレート推定済みPriceSourceを自動有効化する" checked={settings.priceSourceAutoEnableInferredTemplate} />
             <Field label="AI Source Curator 自動登録件数上限">
               <input className={inputClass} name="aiSourceCuratorRegisterLimit" type="number" min="1" defaultValue={settings.aiSourceCuratorRegisterLimit} />
             </Field>

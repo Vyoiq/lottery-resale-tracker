@@ -53,6 +53,14 @@ const currentPriceDiscoveryQueries = [
   { name: "トレカ 買取表 ポケカ", query: "トレカ 買取表 ポケカ", category: "trading_card" }
 ] as const;
 
+const fallbackWatchDiscoveryQueries = [
+  { name: "ポケモンカード 抽選販売 受付中", query: "ポケモンカード 抽選販売 受付中", category: "pokemon" },
+  { name: "ポケカ 抽選販売 受付中", query: "ポケカ 抽選販売 受付中", category: "pokemon" },
+  { name: "ポケモンカード 応募受付中", query: "ポケモンカード 応募受付中", category: "pokemon" },
+  { name: "ポケカ 予約 抽選", query: "ポケカ 予約 抽選", category: "pokemon" },
+  { name: "トレカ 抽選販売 受付中", query: "トレカ 抽選販売 受付中", category: "trading_card" }
+] as const;
+
 export type SourceDiscoveryResult = {
   queryCount: number;
   foundCount: number;
@@ -84,7 +92,10 @@ async function runDiscovery(input: {
   if (input.mode === "price") {
     await ensureCurrentPriceDiscoveryQueries(input.client);
   }
-  const forcedQueries = input.mode === "price" ? currentPriceDiscoveryQueries.map((query) => query.query) : [];
+  const forcedQueries =
+    input.mode === "price"
+      ? currentPriceDiscoveryQueries.map((query) => query.query)
+      : fallbackWatchDiscoveryQueries.map((query) => query.query);
   const queries = await input.client.discoveryQuery.findMany({
     where: {
       OR: [{ enabled: true }, ...(forcedQueries.length > 0 ? [{ query: { in: forcedQueries } }] : [])],
@@ -198,7 +209,7 @@ async function runDiscovery(input: {
 }
 
 async function ensureCurrentWatchDiscoveryQueries(client: PrismaClient) {
-  await ensureDiscoveryQueries(client, currentWatchDiscoveryQueries, "watch_source");
+  await ensureDiscoveryQueries(client, fallbackWatchDiscoveryQueries, "watch_source");
 }
 
 async function ensureCurrentPriceDiscoveryQueries(client: PrismaClient) {

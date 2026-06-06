@@ -13,6 +13,7 @@ import { runFullOperation, runOperationTask, operationRunTypes } from "@/service
 import { isPlaceholderPriceSource, placeholderSourceReason } from "@/lib/sourceGuards";
 import { addDiscoveredSourceAsPriceSource, addDiscoveredSourceAsWatchSource, ignoreDiscoveredSource } from "@/services/sourceDiscovery/discoveryRunner";
 import { cleanupPlaceholderSources } from "@/services/sources/placeholderCleanup";
+import { inferAndSavePriceSourceTemplate, inferTemplatesForBasePriceSources } from "@/services/priceSources/templateInference";
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -417,6 +418,23 @@ export async function updatePriceSourceTemplate(formData: FormData) {
     }
   });
   revalidatePath("/price-sources");
+  revalidatePath("/health");
+}
+
+export async function inferPriceSourceTemplateAction(formData: FormData) {
+  await inferAndSavePriceSourceTemplate(str(formData, "id"));
+  revalidatePath("/price-sources");
+  revalidatePath("/simple");
+  revalidatePath("/operation-runs");
+  revalidatePath("/health");
+}
+
+export async function inferAllPriceSourceTemplatesAction() {
+  await inferTemplatesForBasePriceSources();
+  revalidatePath("/");
+  revalidatePath("/simple");
+  revalidatePath("/price-sources");
+  revalidatePath("/operation-runs");
   revalidatePath("/health");
 }
 

@@ -2,19 +2,29 @@ import type { DiscoveredSource, PrismaClient } from "@prisma/client";
 import { getOperationSettings } from "@/lib/appSettings";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { inferAndSavePriceSourceTemplate, inferTemplatesForBasePriceSources } from "@/services/priceSources/templateInference";
 import { addDiscoveredSourceAsPriceSource, addDiscoveredSourceAsWatchSource } from "./discoveryRunner";
 
 export type SourceCuratorResult = {
   checkedCount: number;
+  basePriceSourceCount: number;
   registeredWatchCount: number;
   registeredPriceCount: number;
   registeredBasePriceCount: number;
+  templateInferenceSuccessCount: number;
+  templateInferenceFailureCount: number;
+  templateTestSuccessCount: number;
+  templateTestFailureCount: number;
+  watchCandidateCount: number;
+  watchRegisterSuccessCount: number;
+  autoEnableCandidateCount: number;
   enabledWatchCount: number;
   enabledPriceCount: number;
   manualReviewCount: number;
   ignoreCount: number;
   skippedCount: number;
   skippedReasons: string[];
+  autoEnableSkippedReasons: string[];
 };
 
 const watchActions = new Set(["add_watch_source", "add_both"]);
@@ -22,22 +32,32 @@ const watchUsefulness = new Set(["watch_source", "both"]);
 const priceActions = new Set(["add_price_source", "add_both"]);
 const priceUsefulness = new Set(["price_source", "both"]);
 const acceptedWatchTrust = new Set(["high", "medium"]);
-const cardOrBuybackKeywords = ["買取", "買取価格", "買取表", "高価買取", "未開封買取", "ポケカ", "ポケモンカード", "トレカ", "BOX", "スペシャルBOX"];
+const buybackKeywords = ["買取", "買取価格", "買取表", "高価買取", "未開封買取", "ポケカ", "ポケモンカード", "トレカ", "BOX", "スペシャルBOX"];
+const watchKeywords = ["抽選", "応募", "受付", "ポケカ", "ポケモンカード", "トレカ"];
 const blockedHosts = new Set(["bing.com", "www.bing.com", "youtu.be", "youtube.com", "www.youtube.com"]);
 
 export async function runSourceCurator(client: PrismaClient = defaultPrisma): Promise<SourceCuratorResult> {
   const settings = await getOperationSettings(client);
   const result: SourceCuratorResult = {
     checkedCount: 0,
+    basePriceSourceCount: await client.priceSource.count({ where: { searchUrlTemplate: "" } }),
     registeredWatchCount: 0,
     registeredPriceCount: 0,
     registeredBasePriceCount: 0,
+    templateInferenceSuccessCount: 0,
+    templateInferenceFailureCount: 0,
+    templateTestSuccessCount: 0,
+    templateTestFailureCount: 0,
+    watchCandidateCount: 0,
+    watchRegisterSuccessCount: 0,
+    autoEnableCandidateCount: 0,
     enabledWatchCount: 0,
     enabledPriceCount: 0,
     manualReviewCount: 0,
     ignoreCount: 0,
     skippedCount: 0,
-    skippedReasons: []
+    skippedReasons: [],
+    autoEnableSkippedReasons: []
   };
 
   if (!settings.aiSourceCuratorEnabled) {
@@ -45,58 +65,68 @@ export async function runSourceCurator(client: PrismaClient = defaultPrisma): Pr
     return result;
   }
 
+  const existingTemplateInference = await inferTemplatesForBasePriceSources(client);
+  result.basePriceSourceCount = existingTemplateInference.basePriceSourceCount;
+  result.templateInferenceSuccessCount += existingTemplateInference.inferredCount;
+  result.templateInferenceFailureCount += existingTemplateInference.inferenceFailedCount;
+  result.templateTestSuccessCount += existingTemplateInference.testSuccessCount;
+  result.templateTestFailureCount += existingTemplateInference.testFailedCount;
+  result.enabledPriceCount += existingTemplateInference.enabledCount;
+
   const sources = await client.discoveredSource.findMany({
     where: { status: "new" },
     orderBy: [{ aiTrustLevel: "asc" }, { confidenceScore: "desc" }, { discoveredAt: "desc" }],
-    take: Math.max(settings.aiSourceCuratorRegisterLimit * 3, 50)
+    take: Math.max(settings.aiSourceCuratorRegisterLimit * 3, 60)
   });
 
   let registeredTotal = 0;
-  let enabledTotal = 0;
+  let enabledTotal = existingTemplateInference.enabledCount;
   const skippedReasons = new Map<string, number>();
+  const autoEnableSkippedReasons = new Map<string, number>();
+  for (const reason of existingTemplateInference.skippedReasons) addCount(skippedReasons, reason);
 
   for (const source of sources) {
     result.checkedCount += 1;
     const watchCandidate = isWatchCandidate(source);
     const priceCandidate = isPriceCandidate(source);
+    if (watchCandidate) result.watchCandidateCount += 1;
 
     if (isPastOrEnded(source)) {
       result.skippedCount += 1;
-      addSkipped(skippedReasons, "過去記事除外");
+      addCount(skippedReasons, "過去記事除外");
       continue;
     }
 
     if (isBlockedHost(source) || placeholderSourceReason({ name: source.title, url: source.normalizedUrl, memo: source.description })) {
       result.skippedCount += 1;
-      addSkipped(skippedReasons, "ノイズ除外");
+      addCount(skippedReasons, "ノイズ除外");
       continue;
     }
 
     if ((source.sourceUsefulness === "ignore" || source.aiRecommendedAction === "ignore") && !watchCandidate && !priceCandidate) {
       result.ignoreCount += 1;
-      addSkipped(skippedReasons, "ignore判定");
+      addCount(skippedReasons, "ignore判定");
       continue;
     }
 
     if ((source.sourceUsefulness === "manual_review" || source.aiRecommendedAction === "manual_review") && !watchCandidate && !priceCandidate) {
       result.manualReviewCount += 1;
-      addSkipped(skippedReasons, isTimeout(source) ? "timeout" : "manual_review");
+      addCount(skippedReasons, isTimeout(source) ? "timeout" : "manual_review");
       continue;
     }
 
     if (!source.aiCanAutoRegister && !isRuleBasedRegisterCandidate(source)) {
       result.skippedCount += 1;
-      addSkipped(skippedReasons, "自動登録不可判定");
+      addCount(skippedReasons, "自動登録不可判定");
       continue;
     }
 
     if (registeredTotal >= settings.aiSourceCuratorRegisterLimit) {
       result.skippedCount += 1;
-      addSkipped(skippedReasons, "自動登録件数上限");
+      addCount(skippedReasons, "自動登録件数上限");
       continue;
     }
 
-    const canEnable = source.aiCanAutoEnable && enabledTotal < settings.aiSourceCuratorEnableLimit;
     const shouldRegisterWatch =
       settings.aiSourceCuratorAutoRegisterWatch &&
       watchCandidate &&
@@ -105,34 +135,47 @@ export async function runSourceCurator(client: PrismaClient = defaultPrisma): Pr
     const shouldRegisterPrice =
       settings.aiSourceCuratorAutoRegisterPrice &&
       priceCandidate &&
-      hasPriceKeyword(source) &&
+      hasBuybackKeyword(source) &&
       (source.aiTrustLevel === "high" || isRuleBasedPriceCandidate(source));
 
     if (!shouldRegisterWatch && !shouldRegisterPrice) {
       result.skippedCount += 1;
-      addSkipped(skippedReasons, buildConditionReason(source, watchCandidate, priceCandidate));
+      addCount(skippedReasons, buildConditionReason(source, watchCandidate, priceCandidate));
       continue;
     }
 
     if (shouldRegisterWatch) {
-      const enabled = canEnable && settings.sourceDiscoveryAutoEnableHighTrust;
-      const added = await addDiscoveredSourceAsWatchSource(source.id, client, { enabled });
-      if (added) {
-        result.registeredWatchCount += 1;
-        registeredTotal += 1;
-        if (enabled) {
-          result.enabledWatchCount += 1;
-          enabledTotal += 1;
-        }
-      } else {
+      const validation = await validateWatchSourceCandidate(source.normalizedUrl);
+      if (!validation.success) {
         result.skippedCount += 1;
-        addSkipped(skippedReasons, "WatchSource登録済み");
+        addCount(skippedReasons, `WatchSource HTTP検証失敗: ${validation.reason}`);
+      } else {
+        const canEnable = source.aiCanAutoEnable && enabledTotal < settings.aiSourceCuratorEnableLimit;
+        if (canEnable) result.autoEnableCandidateCount += 1;
+        const enabled = canEnable && settings.sourceDiscoveryAutoEnableHighTrust;
+        if (canEnable && !enabled) addCount(autoEnableSkippedReasons, "WatchSource自動有効化設定OFF");
+        const added = await addDiscoveredSourceAsWatchSource(source.id, client, { enabled });
+        if (added) {
+          result.registeredWatchCount += 1;
+          result.watchRegisterSuccessCount += 1;
+          registeredTotal += 1;
+          if (enabled) {
+            result.enabledWatchCount += 1;
+            enabledTotal += 1;
+          }
+        } else {
+          result.skippedCount += 1;
+          addCount(skippedReasons, "WatchSource登録済み");
+        }
       }
     }
 
     if (shouldRegisterPrice && registeredTotal < settings.aiSourceCuratorRegisterLimit) {
       const hasTemplate = Boolean(source.searchUrlTemplateCandidate?.includes("{keyword}"));
+      const canEnable = source.aiCanAutoEnable && enabledTotal < settings.aiSourceCuratorEnableLimit;
+      if (canEnable) result.autoEnableCandidateCount += 1;
       const enabled = canEnable && settings.priceSourceDiscoveryAutoEnableHighTrust && hasTemplate;
+      if (canEnable && !enabled) addCount(autoEnableSkippedReasons, hasTemplate ? "PriceSource自動有効化設定OFF" : "searchUrlTemplate未推定のため自動有効化しない");
       const added = await addDiscoveredSourceAsPriceSource(source.id, client, { enabled });
       if (added) {
         result.registeredPriceCount += 1;
@@ -142,14 +185,32 @@ export async function runSourceCurator(client: PrismaClient = defaultPrisma): Pr
           result.enabledPriceCount += 1;
           enabledTotal += 1;
         }
+
+        const priceSource = await client.priceSource.findFirst({ where: { baseUrl: source.normalizedUrl } });
+        if (priceSource && !priceSource.searchUrlTemplate.includes("{keyword}")) {
+          const inferred = await inferAndSavePriceSourceTemplate(priceSource.id, client, {
+            allowEnable: settings.priceSourceAutoEnableInferredTemplate && source.aiTrustLevel === "high"
+          });
+          result.templateInferenceSuccessCount += inferred.inferredCount;
+          result.templateInferenceFailureCount += inferred.inferenceFailedCount;
+          result.templateTestSuccessCount += inferred.testSuccessCount;
+          result.templateTestFailureCount += inferred.testFailedCount;
+          result.enabledPriceCount += inferred.enabledCount;
+          if (inferred.enabledCount > 0) enabledTotal += inferred.enabledCount;
+          for (const reason of inferred.skippedReasons) addCount(skippedReasons, reason);
+          if (settings.priceSourceAutoEnableInferredTemplate && source.aiTrustLevel !== "high") {
+            addCount(autoEnableSkippedReasons, "high trustではないため推定後も自動有効化しない");
+          }
+        }
       } else {
         result.skippedCount += 1;
-        addSkipped(skippedReasons, "PriceSource登録済み");
+        addCount(skippedReasons, "PriceSource登録済み");
       }
     }
   }
 
-  result.skippedReasons = [...skippedReasons.entries()].map(([reason, count]) => `${reason}: ${count}`);
+  result.skippedReasons = mapToLines(skippedReasons);
+  result.autoEnableSkippedReasons = mapToLines(autoEnableSkippedReasons);
   return result;
 }
 
@@ -157,8 +218,7 @@ function isWatchCandidate(source: DiscoveredSource) {
   return (
     watchUsefulness.has(source.sourceUsefulness) ||
     watchActions.has(source.aiRecommendedAction) ||
-    source.discoveryType === "current_lottery_application" ||
-    source.detectedType === "watch_source_candidate"
+    source.discoveryType === "current_lottery_application"
   );
 }
 
@@ -176,7 +236,7 @@ function isRuleBasedRegisterCandidate(source: DiscoveredSource) {
 }
 
 function isRuleBasedPriceCandidate(source: DiscoveredSource) {
-  return source.discoveryType === "price_buyback_page" || (source.detectedType === "price_source_candidate" && hasPriceKeyword(source));
+  return source.discoveryType === "price_buyback_page" || (source.detectedType === "price_source_candidate" && hasBuybackKeyword(source));
 }
 
 function isPastOrEnded(source: DiscoveredSource) {
@@ -188,7 +248,7 @@ function isPastOrEnded(source: DiscoveredSource) {
   );
 }
 
-function hasPriceKeyword(source: DiscoveredSource) {
+function hasBuybackKeyword(source: DiscoveredSource) {
   const text = [
     source.title,
     source.description,
@@ -200,14 +260,36 @@ function hasPriceKeyword(source: DiscoveredSource) {
   ]
     .filter(Boolean)
     .join(" ");
-  return cardOrBuybackKeywords.some((keyword) => text.includes(keyword));
+  return buybackKeywords.some((keyword) => text.includes(keyword));
 }
 
 function buildConditionReason(source: DiscoveredSource, watchCandidate: boolean, priceCandidate: boolean) {
   if (watchCandidate && !acceptedWatchTrust.has(source.aiTrustLevel) && source.discoveryType !== "current_lottery_application") return "watch_source 条件不足";
   if (priceCandidate && source.aiTrustLevel !== "high" && !isRuleBasedPriceCandidate(source)) return "price_source 条件不足";
-  if (priceCandidate && !hasPriceKeyword(source)) return "買取/トレカ系キーワード不足";
+  if (priceCandidate && !hasBuybackKeyword(source)) return "買取/トレカ系キーワード不足";
   return "watch_source / price_source 条件不足";
+}
+
+async function validateWatchSourceCandidate(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "user-agent": "LotteryResaleTracker/1.0 (+local personal use)",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      }
+    });
+    if (response.status !== 200) return { success: false, reason: `HTTP ${response.status}` };
+    const text = (await response.text()).slice(0, 80000);
+    if (!watchKeywords.some((keyword) => text.includes(keyword))) return { success: false, reason: "抽選/応募/トレカ系キーワードなし" };
+    return { success: true, reason: "OK" };
+  } catch (error) {
+    return { success: false, reason: error instanceof Error ? error.message : String(error) };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function isTimeout(source: DiscoveredSource) {
@@ -222,6 +304,10 @@ function isBlockedHost(source: DiscoveredSource) {
   }
 }
 
-function addSkipped(reasons: Map<string, number>, reason: string) {
+function addCount(reasons: Map<string, number>, reason: string) {
   reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+}
+
+function mapToLines(reasons: Map<string, number>) {
+  return [...reasons.entries()].map(([reason, count]) => `${reason}: ${count}`);
 }

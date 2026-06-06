@@ -809,6 +809,14 @@ PriceSource の確認:
 - `/price-sources` の一覧内フォームで `searchUrlTemplate` を編集して保存できます。
 - テンプレート未設定の PriceSource はテスト取得できず、有効化もできません。
 
+searchUrlTemplate の自動推定:
+- baseUrl 登録済みの PriceSource は、`/price-sources` の `テンプレート自動推定` または各行の `推定して保存` から検索URLテンプレートを推定できます。
+- 推定処理は公開ページの HTML だけを取得し、`form action`、`input name`、サイト内検索リンク、`q` / `query` / `keyword` / `word` / `search` / `name` のような検索パラメータを見ます。
+- 推定したテンプレートは `スペシャルBOX ポケモンセンターヒロシマ`、`ポケモンカード BOX`、`ポケカ BOX` でテスト取得し、HTTP 200 かつ買取系キーワードを確認できた場合だけ保存します。
+- テンプレート推定に成功しても、既定では `enabled: false` のままです。`/settings/operations` で `テンプレート推定済みPriceSourceを自動有効化する` をONにした場合だけ、高信頼かつテスト成功した候補を自動有効化できます。
+- `/simple` が空で `PriceSourceはbaseUrl登録済みですが searchUrlTemplate 未設定です` と出る場合は、まず `テンプレート自動推定を実行` を押してください。
+- 推定できないサイトは、検索フォームが JavaScript 依存、ログイン必須、または検索URLの形式が特殊な可能性があります。その場合は `/price-sources` で手動確認してからテンプレートを入力してください。
+
 ### OllamaでAI分類する
 
 OpenAI APIの課金設定を使わず、ローカルLLMでAI分類したい場合は Ollama を使えます。Ollama はインストール後、既定ではローカル API を `http://localhost:11434/api` で提供します。Ollama の structured outputs は JSON Schema を `format` に渡して使えます。

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ignoreLotteryListing, runPriceCheckForListingAction, runSourceCuratorAction, setApplicationMilestone } from "@/lib/actions";
+import { ignoreLotteryListing, inferAllPriceSourceTemplatesAction, runPriceCheckForListingAction, runSourceCuratorAction, setApplicationMilestone } from "@/lib/actions";
 import { applicationStatusLabels, dateOnly, multiple, percent, priceStatusLabels, yen } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
@@ -105,7 +105,15 @@ async function getSimpleListings(searchParams: SearchParams) {
 
 async function getSimpleDiagnostics() {
   const now = new Date();
-  const [enabledWatchSources, enabledPriceSources, activeListingCount, currentDiscoveryCandidateCount, priceDiscoveryCandidateCount] = await Promise.all([
+  const [
+    enabledWatchSources,
+    enabledPriceSources,
+    activeListingCount,
+    currentDiscoveryCandidateCount,
+    priceDiscoveryCandidateCount,
+    basePriceSourceNeedsTemplateCount,
+    watchSourceCandidateCount
+  ] = await Promise.all([
     prisma.watchSource.findMany({ where: { enabled: true } }),
     prisma.priceSource.findMany({ where: { enabled: true } }),
     prisma.lotteryListing.count({
@@ -135,6 +143,15 @@ async function getSimpleDiagnostics() {
         status: "new",
         OR: [{ discoveryType: "price_buyback_page" }, { detectedType: "price_source_candidate" }]
       }
+    }),
+    prisma.priceSource.count({
+      where: { searchUrlTemplate: "" }
+    }),
+    prisma.discoveredSource.count({
+      where: {
+        status: "new",
+        discoveryType: "current_lottery_application"
+      }
     })
   ]);
 
@@ -147,7 +164,9 @@ async function getSimpleDiagnostics() {
       (source) => !placeholderSourceReason(source) && source.searchUrlTemplate.includes("{keyword}")
     ).length,
     currentDiscoveryCandidateCount,
-    priceDiscoveryCandidateCount
+    priceDiscoveryCandidateCount,
+    basePriceSourceNeedsTemplateCount,
+    watchSourceCandidateCount
   };
 }
 
@@ -242,6 +261,10 @@ function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<
     diagnostics.activeListingCount === 0 ? "受付中の抽選がありません" : null,
     diagnostics.enabledRealWatchSourceCount === 0 ? "有効なWatchSourceがありません" : null,
     diagnostics.enabledRealPriceSourceCount === 0 ? "有効なPriceSourceがありません" : null,
+    diagnostics.watchSourceCandidateCount > 0 ? `WatchSource候補はあるが未登録です: ${diagnostics.watchSourceCandidateCount}件` : null,
+    diagnostics.basePriceSourceNeedsTemplateCount > 0
+      ? `PriceSourceはbaseUrl登録済みですが searchUrlTemplate 未設定です: ${diagnostics.basePriceSourceNeedsTemplateCount}件`
+      : null,
     diagnostics.currentDiscoveryCandidateCount === 0 ? "現在受付中のDiscovery候補がありません" : null,
     diagnostics.priceDiscoveryCandidateCount === 0 ? "買取価格ページ候補がありません" : null
   ].filter(Boolean);
@@ -262,6 +285,11 @@ function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<
         <Link href="/source-discovery?quickFilter=price" className={secondaryButtonClass}>PriceSource Discoveryを確認</Link>
         <Link href="/sources" className={secondaryButtonClass}>WatchSourceを有効化</Link>
         <Link href="/price-sources" className={secondaryButtonClass}>PriceSourceを有効化</Link>
+        {diagnostics.basePriceSourceNeedsTemplateCount > 0 ? (
+          <form action={inferAllPriceSourceTemplatesAction}>
+            <button className={buttonClass} type="submit">テンプレート自動推定を実行</button>
+          </form>
+        ) : null}
         {diagnostics.currentDiscoveryCandidateCount > 0 || diagnostics.priceDiscoveryCandidateCount > 0 ? (
           <form action={runSourceCuratorAction}>
             <button className={buttonClass} type="submit">AI Source Curatorを実行</button>
@@ -270,7 +298,7 @@ function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<
         <Link href="/settings/operations" className={buttonClass}>運用タスクを実行</Link>
       </div>
       <div className="mt-3 text-xs leading-5 text-amber-800">
-        現在の状態: active抽選 {diagnostics.activeListingCount} 件 / 有効WatchSource {diagnostics.enabledRealWatchSourceCount} 件 / 有効PriceSource {diagnostics.enabledRealPriceSourceCount} 件 / 受付中候補 {diagnostics.currentDiscoveryCandidateCount} 件 / 価格候補 {diagnostics.priceDiscoveryCandidateCount} 件
+        現在の状態: active抽選 {diagnostics.activeListingCount} 件 / 有効WatchSource {diagnostics.enabledRealWatchSourceCount} 件 / 有効PriceSource {diagnostics.enabledRealPriceSourceCount} 件 / 未登録WatchSource候補 {diagnostics.watchSourceCandidateCount} 件 / テンプレート未設定PriceSource {diagnostics.basePriceSourceNeedsTemplateCount} 件 / 受付中候補 {diagnostics.currentDiscoveryCandidateCount} 件 / 価格候補 {diagnostics.priceDiscoveryCandidateCount} 件
       </div>
     </Card>
   );
