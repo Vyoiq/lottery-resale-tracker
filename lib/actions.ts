@@ -14,6 +14,7 @@ import { isPlaceholderPriceSource, placeholderSourceReason } from "@/lib/sourceG
 import { addDiscoveredSourceAsPriceSource, addDiscoveredSourceAsWatchSource, ignoreDiscoveredSource } from "@/services/sourceDiscovery/discoveryRunner";
 import { cleanupPlaceholderSources } from "@/services/sources/placeholderCleanup";
 import { inferAndSavePriceSourceTemplate, inferTemplatesForBasePriceSources } from "@/services/priceSources/templateInference";
+import { runAutoPilot } from "@/services/operations/autoPilotRunner";
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -579,6 +580,13 @@ export async function updateOperationSettingsAction(formData: FormData) {
 export async function runOperationTasksAction() {
   await runFullOperation();
   revalidateOperationViews();
+}
+
+export async function runAutoPilotAction() {
+  await runAutoPilot(prisma, { force: true, trigger: "simple_button" });
+  revalidateOperationViews();
+  revalidatePath("/sources");
+  revalidatePath("/price-sources");
 }
 
 export async function cleanupPlaceholderSourcesAction() {

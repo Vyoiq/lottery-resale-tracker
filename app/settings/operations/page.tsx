@@ -40,6 +40,9 @@ export default async function OperationSettingsPage() {
             <ToggleField name="aiSourceCuratorEnabled" label="AI Source Curatorを有効化" checked={settings.aiSourceCuratorEnabled} />
             <ToggleField name="aiSourceCuratorAutoRegisterWatch" label="高信頼WatchSourceを自動登録" checked={settings.aiSourceCuratorAutoRegisterWatch} />
             <ToggleField name="aiSourceCuratorAutoRegisterPrice" label="高信頼PriceSourceを自動登録" checked={settings.aiSourceCuratorAutoRegisterPrice} />
+            <ToggleField name="autoPilotEnabled" label="Auto Pilotを有効化" checked={settings.autoPilotEnabled} />
+            <ToggleField name="autoPilotRunOnEmptySimple" label="/simple 空時にAuto Pilotを自動実行" checked={settings.autoPilotRunOnEmptySimple} />
+            <ToggleField name="autoPilotSafeEnableOnly" label="安全チェック済みのみ自動有効化" checked={settings.autoPilotSafeEnableOnly} />
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -81,6 +84,21 @@ export default async function OperationSettingsPage() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Auto Pilot 最大Discovery件数">
+              <input className={inputClass} name="autoPilotMaxDiscoveryCount" type="number" min="1" defaultValue={settings.autoPilotMaxDiscoveryCount} />
+            </Field>
+            <Field label="Auto Pilot 最大AI分類件数">
+              <input className={inputClass} name="autoPilotMaxAiClassifications" type="number" min="0" defaultValue={settings.autoPilotMaxAiClassifications} />
+            </Field>
+            <Field label="Auto Pilot 最大自動登録件数">
+              <input className={inputClass} name="autoPilotMaxAutoRegister" type="number" min="0" defaultValue={settings.autoPilotMaxAutoRegister} />
+            </Field>
+            <Field label="Auto Pilot 最大自動有効化件数">
+              <input className={inputClass} name="autoPilotMaxAutoEnable" type="number" min="0" defaultValue={settings.autoPilotMaxAutoEnable} />
+            </Field>
+            <Field label="Auto Pilot再実行間隔（分）">
+              <input className={inputClass} name="autoPilotIntervalMinutes" type="number" min="1" defaultValue={settings.autoPilotIntervalMinutes} />
+            </Field>
             <ToggleField name="sourceDiscoveryAutoEnableHighTrust" label="高信頼WatchSource候補を自動有効化する" checked={settings.sourceDiscoveryAutoEnableHighTrust} />
             <ToggleField name="priceSourceDiscoveryAutoEnableHighTrust" label="高信頼PriceSource候補を自動有効化する" checked={settings.priceSourceDiscoveryAutoEnableHighTrust} />
             <ToggleField name="priceSourceAutoEnableInferredTemplate" label="テンプレート推定済みPriceSourceを自動有効化する" checked={settings.priceSourceAutoEnableInferredTemplate} />
@@ -115,6 +133,10 @@ export default async function OperationSettingsPage() {
         </form>
       </Card>
 
+      <Card className="mb-6 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
+        Auto Pilotは公開ページの低頻度確認、候補分類、登録、テンプレート推定、安全チェック済みソースの有効化、価格取得までをまとめて実行します。自動応募、自動購入、ログイン、CAPTCHA回避は行いません。
+      </Card>
+
       <Card className="mb-6 p-4">
         <h2 className="mb-3 font-semibold">個別実行</h2>
         <div className="flex flex-wrap gap-2">
@@ -127,6 +149,7 @@ export default async function OperationSettingsPage() {
           <TaskButton type="ai_classification" label="AI分類" />
           <TaskButton type="source_curator" label="AI Source Curator" />
           <TaskButton type="safe_source_enable" label="安全チェック済みソース自動有効化" />
+          <TaskButton type="autopilot" label="Auto Pilot" />
           <form action={cleanupEndedListingsAction}>
             <button className={secondaryButtonClass} type="submit">終了済みを再判定</button>
           </form>

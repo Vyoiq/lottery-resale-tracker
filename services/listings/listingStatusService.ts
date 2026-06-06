@@ -1,5 +1,6 @@
 import type { LotteryListing, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "@/lib/prisma";
+import { isAllowedAmazonDiscoveryType, isAmazonExcludedDiscoveryType } from "@/services/discoveryClassification/rules";
 
 const endedTextPattern = /(終了|受付終了|応募終了|販売終了)/;
 const oldAnnouncementThresholdDays = 14;
@@ -12,6 +13,8 @@ type ListingStatusInput = Pick<
 export function inferListingStatus(listing: ListingStatusInput & { discoveryType?: string | null }, now = new Date()) {
   if (listing.ignored) return "ignored";
   if (listing.discoveryType === "ended_lottery_article" || listing.discoveryType === "lottery_news_article") return "ended";
+  if (isAmazonExcludedDiscoveryType(listing.discoveryType)) return "ended";
+  if (isAllowedAmazonDiscoveryType(listing.discoveryType)) return "active";
   if (listing.applicationEndAt) {
     return listing.applicationEndAt.getTime() >= now.getTime() ? "active" : "ended";
   }

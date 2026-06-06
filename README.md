@@ -688,6 +688,43 @@ SERPAPI_API_KEY=
 
 `/simple` で「有効な価格ソースがありません」と出る場合は、PriceSource Discovery を実行し、`/source-discovery` で候補を確認してから `/price-sources` で使うソースを有効化してください。
 
+## Auto Pilot
+
+Auto Pilot は、`/simple` に表示できる候補がないときに、不足している処理をまとめて実行する自動復旧モードです。基本コマンドは次の通りです。
+
+```bash
+npm run autopilot
+```
+
+`/simple` の空状態からも `Auto Pilotを実行` ボタンで起動できます。`/settings/operations` で `/simple 空時にAuto Pilotを自動実行` をONにすると、表示候補がない場合に自動実行できます。ただし無限ループを避けるため、既定では30分以内の再実行をスキップします。
+
+Auto Pilot が行うこと:
+- Source Discovery
+- PriceSource Discovery
+- AI分類
+- AI Source Curator による WatchSource / PriceSource の自動登録
+- PriceSource searchUrlTemplate の自動推定
+- テンプレートのテスト取得
+- 安全チェック済み WatchSource / PriceSource の自動有効化
+- 抽選情報収集
+- status 再判定
+- 価格取得
+- 通知生成
+- 設定ONの場合のみバックアップ
+
+Auto Pilot が行わないこと:
+- 自動応募
+- 自動購入
+- ログイン
+- CAPTCHA回避
+- 高頻度アクセス
+
+`enabled=true` になる条件:
+- WatchSource は、実在URL、HTTP 200、プレースホルダーではない、ノイズではない、過去記事ではない、`current_lottery_application` または許可済みAmazon分類、ポケカ/トレカ/BOX/抽選/応募/予約/招待系キーワードあり、AI信頼度 high、`aiCanAutoEnable=true` の場合だけ自動有効化します。
+- PriceSource は、実在URL、HTTP 200、プレースホルダーではない、ノイズではない、`{keyword}` を含む `searchUrlTemplate` がある、テスト取得成功、買取系HTML確認済み、AI信頼度 high、`aiCanAutoEnable=true` の場合だけ自動有効化します。
+
+安全チェックで落ちたものは `enabled=false` のまま残ります。`/source-discovery`、`/sources`、`/price-sources` には、自動登録済みか、自動有効化できない理由、最終テスト結果、人間の確認が必要な理由を表示します。手動作業が必要になるのは、`searchUrlTemplate` を自動推定できない、AI判定が `manual_review`、HTTPエラー、ノイズ判定が曖昧、価格ページか販売ページか判断できない、利用規約上のリスクがある場合です。
+
 ## AI分類
 
 Source Discovery や collect で拾った候補は、OpenAI API を使って追加分類できます。AI分類は記事、過去告知、通常販売ページ、買取価格ページを分け、現在応募できる抽選応募ページを `/source-discovery` と `/simple` で優先しやすくする補助機能です。
@@ -809,6 +846,14 @@ npm run curate:sources
 - 自動有効化されたソースで失敗が続く、プレースホルダー/ノイズ判定に変わる、過去記事や販売価格ページと判定される場合は自動で `enabled=false` に戻し、理由を記録します。
 - 自動有効化は公開ページの情報取得を始めるだけです。自動応募、自動購入、ログイン自動化、CAPTCHA回避は行いません。
 - 通常運用はまず `npm run operate` を実行し、`/simple` を確認する流れを推奨します。
+
+Amazon候補の扱い:
+- Amazonは、Amazon.co.jp販売の招待販売、予約販売、定価付近の通常販売だけを候補にします。
+- `amazon_invitation_sale`、`amazon_preorder`、`amazon_regular_sale` は `/simple` 表示対象になり得ます。
+- `amazon_excluded_marketplace`、`amazon_unknown`、`amazon_unavailable` は通常候補から除外します。
+- Amazonマーケットプレイス出品、中古、外部販売者、発送元/販売元がAmazon.co.jpではない商品、出品者一覧、「こちらからもご購入いただけます」系、プレ値販売は除外します。
+- Amazon商品ページをWatchSource化する場合も、Amazon.co.jpの `dp/ASIN` URL、ポケモンカード/ポケカ/BOX/拡張パック系、Amazon.co.jp販売または予約/招待販売、HTTP 200、ノイズなしの場合だけ対象にします。
+- 自動で招待リクエスト、自動購入、ログイン、CAPTCHA回避は行いません。
 
 Ollama や OpenAI API の一時的なタイムアウトで分類できなかった候補は `manual_review` 扱いになります。エラー詳細は OperationRun に残しますが、他の運用タスクが成功していれば `operate` 全体は成功扱いにします。
 

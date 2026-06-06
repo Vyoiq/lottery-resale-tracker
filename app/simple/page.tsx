@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { ignoreLotteryListing, inferAllPriceSourceTemplatesAction, runPriceCheckForListingAction, runSourceCuratorAction, setApplicationMilestone } from "@/lib/actions";
+import { ignoreLotteryListing, inferAllPriceSourceTemplatesAction, runAutoPilotAction, runPriceCheckForListingAction, runSourceCuratorAction, setApplicationMilestone } from "@/lib/actions";
 import { applicationStatusLabels, dateOnly, multiple, percent, priceStatusLabels, yen } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { isAllowedAmazonDiscoveryType, isAmazonExcludedDiscoveryType } from "@/services/discoveryClassification/rules";
+import { runAutoPilotIfAllowed } from "@/services/operations/autoPilotRunner";
 import { Badge, buttonClass, Card, EmptyState, inputClass, PageHeader, secondaryButtonClass, smallButtonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -34,17 +36,44 @@ async function getSimpleListings(searchParams: SearchParams) {
     where: {
       AND: [
         hideIgnored ? { ignored: false } : {},
-        showEnded ? {} : { status: "active", applicationEndAt: { gte: now } },
         showEnded
           ? {}
           : {
-              discoveryType: "current_lottery_application",
-              aiIsLotteryApplicationPage: true,
-              aiIsCurrentlyOpen: true,
-              aiIsPastOrEnded: false,
-              aiIsJustArticle: false,
-              aiIsProductSalesPage: false,
-              aiExcludeReason: null
+              status: "active",
+              OR: [
+                { applicationEndAt: { gte: now } },
+                { discoveryType: { in: ["amazon_invitation_sale", "amazon_preorder", "amazon_regular_sale"] } }
+              ]
+            },
+        showEnded
+          ? {}
+          : {
+              OR: [
+                {
+                  discoveryType: "current_lottery_application",
+                  aiIsLotteryApplicationPage: true,
+                  aiIsCurrentlyOpen: true,
+                  aiIsPastOrEnded: false,
+                  aiIsJustArticle: false,
+                  aiIsProductSalesPage: false,
+                  aiExcludeReason: null
+                },
+                {
+                  discoveryType: { in: ["amazon_invitation_sale", "amazon_preorder", "amazon_regular_sale"] },
+                  aiIsPastOrEnded: { not: true },
+                  aiIsJustArticle: { not: true },
+                  aiExcludeReason: null
+                }
+              ],
+              NOT: [
+                { discoveryType: { in: ["amazon_excluded_marketplace", "amazon_unknown", "amazon_unavailable"] } },
+                { title: { contains: "マーケットプレイス" } },
+                { title: { contains: "中古" } },
+                { rawText: { contains: "こちらからもご購入" } },
+                { rawText: { contains: "コンディション" } },
+                { rawText: { contains: "販売元: Amazon.co.jpでは" } },
+                { rawText: { contains: "販売元：Amazon.co.jpでは" } }
+              ]
             },
         profitOnly ? { estimatedProfit: { gt: 0 } } : {},
         priorityOnly ? { applicationPriorityLabel: { in: ["S", "A", "B"] } } : {},
@@ -67,6 +96,7 @@ async function getSimpleListings(searchParams: SearchParams) {
 
   return listings
     .filter((listing) => !placeholderSourceReason({ name: listing.sourceName, url: listing.sourceUrl }))
+    .filter((listing) => !isAmazonExcludedDiscoveryType(listing.discoveryType))
     .sort((a, b) => {
     const aConfidence = a.priceRecords[0]?.confidenceScore ?? 0;
     const bConfidence = b.priceRecords[0]?.confidenceScore ?? 0;
@@ -194,10 +224,19 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
   const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
   const hideIgnored = boolParam(searchParams, "hideIgnored", true);
-  const [listings, diagnostics] = await Promise.all([
+  let [listings, diagnostics] = await Promise.all([
     getSimpleListings(searchParams),
     getSimpleDiagnostics()
   ]);
+  if (listings.length === 0) {
+    const autopilot = await runAutoPilotIfAllowed(prisma);
+    if (!autopilot.skipped) {
+      [listings, diagnostics] = await Promise.all([
+        getSimpleListings(searchParams),
+        getSimpleDiagnostics()
+      ]);
+    }
+  }
 
   return (
     <>
@@ -294,7 +333,7 @@ function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<
     <Card className="border-amber-200 bg-amber-50/70 p-5">
       <h2 className="text-lg font-semibold text-amber-950">/simple に表示できる候補がありません</h2>
       <p className="mt-2 text-sm leading-6 text-amber-900">
-        厳しめの条件で「現在応募できる抽選」「利益あり」「価格取得済み」を優先表示しています。以下を順に確認してください。
+        現在、自動で候補を探せる状態です。Auto Pilotで候補の分類、登録、テンプレート推定、安全チェック、自動有効化、価格取得までまとめて進められます。自動応募・自動購入は行いません。
       </p>
       <div className="mt-4 grid gap-2 text-sm text-amber-950">
         {causes.map((cause) => (
@@ -302,10 +341,12 @@ function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<
         ))}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Link href="/source-discovery?quickFilter=current" className={secondaryButtonClass}>Source Discoveryを確認</Link>
-        <Link href="/source-discovery?quickFilter=price" className={secondaryButtonClass}>PriceSource Discoveryを確認</Link>
-        <Link href="/sources" className={secondaryButtonClass}>WatchSourceを有効化</Link>
-        <Link href="/price-sources" className={secondaryButtonClass}>PriceSourceを有効化</Link>
+        <form action={runAutoPilotAction}>
+          <button className={`${buttonClass} px-5 py-3 text-base`} type="submit">Auto Pilotを実行</button>
+        </form>
+        <Link href="/source-discovery?quickFilter=current" className={secondaryButtonClass}>Source Discoveryを見る</Link>
+        <Link href="/source-discovery?quickFilter=price" className={secondaryButtonClass}>PriceSourceを見る</Link>
+        <Link href="/price-sources" className={secondaryButtonClass}>価格ソースを見る</Link>
         {diagnostics.basePriceSourceNeedsTemplateCount > 0 ? (
           <form action={inferAllPriceSourceTemplatesAction}>
             <button className={buttonClass} type="submit">テンプレート自動推定を実行</button>
@@ -316,7 +357,7 @@ function SimpleEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<
             <button className={buttonClass} type="submit">AI Source Curatorを実行</button>
           </form>
         ) : null}
-        <Link href="/settings/operations" className={buttonClass}>operateを実行してください</Link>
+        <Link href="/settings/operations" className={secondaryButtonClass}>Auto Pilot設定</Link>
       </div>
       <div className="mt-3 text-xs leading-5 text-amber-800">
         現在の状態: active抽選 {diagnostics.activeListingCount} 件 / 有効WatchSource {diagnostics.enabledRealWatchSourceCount} 件 / 有効PriceSource {diagnostics.enabledRealPriceSourceCount} 件 / 未登録WatchSource候補 {diagnostics.watchSourceCandidateCount} 件 / テンプレート未設定PriceSource {diagnostics.basePriceSourceNeedsTemplateCount} 件 / 自動有効化候補 {diagnostics.autoEnableWatchCandidateCount + diagnostics.autoEnablePriceCandidateCount} 件 / 受付中候補 {diagnostics.currentDiscoveryCandidateCount} 件 / 価格候補 {diagnostics.priceDiscoveryCandidateCount} 件
@@ -451,6 +492,7 @@ function isPokemonCardListing(listing: { productName: string; title: string; des
 }
 
 function isAiPreferredListing(listing: {
+  discoveryType: string;
   aiIsLotteryApplicationPage: boolean | null;
   aiIsCurrentlyOpen: boolean | null;
   aiIsPastOrEnded: boolean | null;
@@ -459,6 +501,7 @@ function isAiPreferredListing(listing: {
   aiCategory: string | null;
   aiExcludeReason: string | null;
 }) {
+  if (isAllowedAmazonDiscoveryType(listing.discoveryType)) return true;
   return (
     listing.aiIsLotteryApplicationPage === true &&
     listing.aiIsCurrentlyOpen === true &&

@@ -21,6 +21,7 @@
     "cleanup:placeholders": "tsx scripts/cleanup-placeholders.ts",
     "cleanup:ended": "tsx scripts/cleanup-ended.ts",
     "operate": "tsx scripts/operate.ts",
+    "autopilot": "tsx scripts/autopilot.ts",
     "backup": "tsx scripts/backup.ts"
   },
   "dependencies": {

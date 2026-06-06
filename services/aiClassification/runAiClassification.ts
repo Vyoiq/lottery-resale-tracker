@@ -5,8 +5,8 @@ import { classifyLotteryListing } from "./classifyLotteryListing";
 import { getAiModelLabel, getAiProviderStatus, isTerminalAiProviderError } from "./aiClient";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const sourceLimit = 5;
-const listingLimit = 10;
+const defaultSourceLimit = 5;
+const defaultListingLimit = 10;
 
 export type AiClassificationRunResult = {
   skipped: boolean;
@@ -20,7 +20,10 @@ export type AiClassificationRunResult = {
   skipReason: string | null;
 };
 
-export async function runAiClassification(client: PrismaClient = defaultPrisma): Promise<AiClassificationRunResult> {
+export async function runAiClassification(
+  client: PrismaClient = defaultPrisma,
+  options: { sourceLimit?: number; listingLimit?: number } = {}
+): Promise<AiClassificationRunResult> {
   const providerStatus = await getAiProviderStatus();
   if (!providerStatus.enabled) {
     return {
@@ -35,6 +38,9 @@ export async function runAiClassification(client: PrismaClient = defaultPrisma):
       skipReason: providerStatus.skipReason
     };
   }
+
+  const sourceLimit = Math.max(0, options.sourceLimit ?? defaultSourceLimit);
+  const listingLimit = Math.max(0, options.listingLimit ?? defaultListingLimit);
 
   const [sources, listings] = await Promise.all([
     client.discoveredSource.findMany({

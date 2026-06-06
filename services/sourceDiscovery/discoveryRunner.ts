@@ -73,17 +73,18 @@ export type SourceDiscoveryResult = {
   providerMessages: string[];
 };
 
-export async function runSourceDiscovery(client: PrismaClient = defaultPrisma): Promise<SourceDiscoveryResult> {
-  return runDiscovery({ client, mode: "all" });
+export async function runSourceDiscovery(client: PrismaClient = defaultPrisma, options: { maxCandidates?: number } = {}): Promise<SourceDiscoveryResult> {
+  return runDiscovery({ client, mode: "all", maxCandidates: options.maxCandidates });
 }
 
-export async function runPriceSourceDiscovery(client: PrismaClient = defaultPrisma): Promise<SourceDiscoveryResult> {
-  return runDiscovery({ client, mode: "price" });
+export async function runPriceSourceDiscovery(client: PrismaClient = defaultPrisma, options: { maxCandidates?: number } = {}): Promise<SourceDiscoveryResult> {
+  return runDiscovery({ client, mode: "price", maxCandidates: options.maxCandidates });
 }
 
 async function runDiscovery(input: {
   client: PrismaClient;
   mode: "all" | "price";
+  maxCandidates?: number;
 }): Promise<SourceDiscoveryResult> {
   const settings = await getOperationSettings(input.client);
   if (input.mode === "all") {
@@ -131,7 +132,8 @@ async function runDiscovery(input: {
         .map((candidate) => classifySourceCandidate({ ...candidate, query }))
         .filter((candidate): candidate is ClassifiedSourceCandidate => Boolean(candidate))
         .filter((candidate) => candidate.confidenceScore >= 0.25)
-        .filter((candidate) => input.mode !== "price" || candidate.detectedType === "price_source_candidate");
+        .filter((candidate) => input.mode !== "price" || candidate.detectedType === "price_source_candidate")
+        .slice(0, input.maxCandidates ?? rawCandidates.length);
 
       foundCount += classified.length;
       const saved = await saveDiscoveredSources({ prisma: input.client, discoveryQueryId: query.id, candidates: classified });

@@ -2,6 +2,7 @@ import type { DiscoveredSource, PrismaClient } from "@prisma/client";
 import { getOperationSettings } from "@/lib/appSettings";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { isAllowedAmazonDiscoveryType, isAmazonDpUrl, hasAmazonMarketplaceRisk } from "@/services/discoveryClassification/rules";
 import { inferAndSavePriceSourceTemplate, inferTemplatesForBasePriceSources } from "@/services/priceSources/templateInference";
 import { addDiscoveredSourceAsPriceSource, addDiscoveredSourceAsWatchSource } from "./discoveryRunner";
 
@@ -36,8 +37,13 @@ const buybackKeywords = ["買取", "買取価格", "買取表", "高価買取", 
 const watchKeywords = ["抽選", "応募", "受付", "ポケカ", "ポケモンカード", "トレカ"];
 const blockedHosts = new Set(["bing.com", "www.bing.com", "youtu.be", "youtube.com", "www.youtube.com"]);
 
-export async function runSourceCurator(client: PrismaClient = defaultPrisma): Promise<SourceCuratorResult> {
+export async function runSourceCurator(
+  client: PrismaClient = defaultPrisma,
+  options: { registerLimit?: number; enableLimit?: number } = {}
+): Promise<SourceCuratorResult> {
   const settings = await getOperationSettings(client);
+  const registerLimit = Math.max(0, options.registerLimit ?? settings.aiSourceCuratorRegisterLimit);
+  const enableLimit = Math.max(0, options.enableLimit ?? settings.aiSourceCuratorEnableLimit);
   const result: SourceCuratorResult = {
     checkedCount: 0,
     basePriceSourceCount: await client.priceSource.count({ where: { searchUrlTemplate: "" } }),
@@ -76,7 +82,7 @@ export async function runSourceCurator(client: PrismaClient = defaultPrisma): Pr
   const sources = await client.discoveredSource.findMany({
     where: { status: "new" },
     orderBy: [{ aiTrustLevel: "asc" }, { confidenceScore: "desc" }, { discoveredAt: "desc" }],
-    take: Math.max(settings.aiSourceCuratorRegisterLimit * 3, 60)
+    take: Math.max(registerLimit * 3, 60)
   });
 
   let registeredTotal = 0;
@@ -121,7 +127,7 @@ export async function runSourceCurator(client: PrismaClient = defaultPrisma): Pr
       continue;
     }
 
-    if (registeredTotal >= settings.aiSourceCuratorRegisterLimit) {
+    if (registeredTotal >= registerLimit) {
       result.skippedCount += 1;
       addCount(skippedReasons, "自動登録件数上限");
       continue;
@@ -130,7 +136,7 @@ export async function runSourceCurator(client: PrismaClient = defaultPrisma): Pr
     const shouldRegisterWatch =
       settings.aiSourceCuratorAutoRegisterWatch &&
       watchCandidate &&
-      (acceptedWatchTrust.has(source.aiTrustLevel) || source.discoveryType === "current_lottery_application");
+      (acceptedWatchTrust.has(source.aiTrustLevel) || source.discoveryType === "current_lottery_application" || isAllowedAmazonDiscoveryType(source.discoveryType));
 
     const shouldRegisterPrice =
       settings.aiSourceCuratorAutoRegisterPrice &&
@@ -150,7 +156,7 @@ export async function runSourceCurator(client: PrismaClient = defaultPrisma): Pr
         result.skippedCount += 1;
         addCount(skippedReasons, `WatchSource HTTP検証失敗: ${validation.reason}`);
       } else {
-        const canEnable = source.aiCanAutoEnable && enabledTotal < settings.aiSourceCuratorEnableLimit;
+        const canEnable = source.aiCanAutoEnable && enabledTotal < enableLimit;
         if (canEnable) result.autoEnableCandidateCount += 1;
         const enabled = canEnable && settings.sourceDiscoveryAutoEnableHighTrust;
         if (canEnable && !enabled) addCount(autoEnableSkippedReasons, "WatchSource自動有効化設定OFF");
@@ -170,9 +176,9 @@ export async function runSourceCurator(client: PrismaClient = defaultPrisma): Pr
       }
     }
 
-    if (shouldRegisterPrice && registeredTotal < settings.aiSourceCuratorRegisterLimit) {
+    if (shouldRegisterPrice && registeredTotal < registerLimit) {
       const hasTemplate = Boolean(source.searchUrlTemplateCandidate?.includes("{keyword}"));
-      const canEnable = source.aiCanAutoEnable && enabledTotal < settings.aiSourceCuratorEnableLimit;
+      const canEnable = source.aiCanAutoEnable && enabledTotal < enableLimit;
       if (canEnable) result.autoEnableCandidateCount += 1;
       const enabled = canEnable && settings.priceSourceDiscoveryAutoEnableHighTrust && hasTemplate;
       if (canEnable && !enabled) addCount(autoEnableSkippedReasons, hasTemplate ? "PriceSource自動有効化設定OFF" : "searchUrlTemplate未推定のため自動有効化しない");
@@ -218,7 +224,8 @@ function isWatchCandidate(source: DiscoveredSource) {
   return (
     watchUsefulness.has(source.sourceUsefulness) ||
     watchActions.has(source.aiRecommendedAction) ||
-    source.discoveryType === "current_lottery_application"
+    source.discoveryType === "current_lottery_application" ||
+    isAllowedAmazonDiscoveryType(source.discoveryType)
   );
 }
 
@@ -264,7 +271,7 @@ function hasBuybackKeyword(source: DiscoveredSource) {
 }
 
 function buildConditionReason(source: DiscoveredSource, watchCandidate: boolean, priceCandidate: boolean) {
-  if (watchCandidate && !acceptedWatchTrust.has(source.aiTrustLevel) && source.discoveryType !== "current_lottery_application") return "watch_source 条件不足";
+  if (watchCandidate && !acceptedWatchTrust.has(source.aiTrustLevel) && source.discoveryType !== "current_lottery_application" && !isAllowedAmazonDiscoveryType(source.discoveryType)) return "watch_source 条件不足";
   if (priceCandidate && source.aiTrustLevel !== "high" && !isRuleBasedPriceCandidate(source)) return "price_source 条件不足";
   if (priceCandidate && !hasBuybackKeyword(source)) return "買取/トレカ系キーワード不足";
   return "watch_source / price_source 条件不足";
@@ -283,6 +290,13 @@ async function validateWatchSourceCandidate(url: string) {
     });
     if (response.status !== 200) return { success: false, reason: `HTTP ${response.status}` };
     const text = (await response.text()).slice(0, 80000);
+    if (isAmazonDpUrl(url)) {
+      const lower = text.toLowerCase();
+      const hasCard = ["ポケモンカード", "ポケカ", "拡張パック", "box", "pokemon card"].some((keyword) => lower.includes(keyword.toLowerCase()));
+      if (!hasCard) return { success: false, reason: "Amazon商品ページだがポケカ/BOX系キーワードなし" };
+      if (hasAmazonMarketplaceRisk(`${url} ${text}`)) return { success: false, reason: "Amazonマーケットプレイス/中古/外部出品者の可能性" };
+      return { success: true, reason: "Amazon.co.jp dp/ASIN商品ページ OK" };
+    }
     if (!watchKeywords.some((keyword) => text.includes(keyword))) return { success: false, reason: "抽選/応募/トレカ系キーワードなし" };
     return { success: true, reason: "OK" };
   } catch (error) {

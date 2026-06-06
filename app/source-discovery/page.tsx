@@ -61,15 +61,20 @@ export default async function SourceDiscoveryPage({
         AND: [
           quickFilter === "current"
             ? {
-                discoveryType: "current_lottery_application",
                 OR: [
-                  { aiClassifiedAt: null },
                   {
-                    aiIsLotteryApplicationPage: true,
-                    aiIsCurrentlyOpen: true,
-                    aiIsPastOrEnded: false,
-                    aiIsJustArticle: false
-                  }
+                    discoveryType: "current_lottery_application",
+                    OR: [
+                      { aiClassifiedAt: null },
+                      {
+                        aiIsLotteryApplicationPage: true,
+                        aiIsCurrentlyOpen: true,
+                        aiIsPastOrEnded: false,
+                        aiIsJustArticle: false
+                      }
+                    ]
+                  },
+                  { discoveryType: { in: ["amazon_invitation_sale", "amazon_preorder", "amazon_regular_sale"] } }
                 ]
               }
             : {},
@@ -214,6 +219,12 @@ export default async function SourceDiscoveryPage({
             <option value="official_product_page">official_product_page</option>
             <option value="price_buyback_page">price_buyback_page</option>
             <option value="sales_page">sales_page</option>
+            <option value="amazon_invitation_sale">amazon_invitation_sale</option>
+            <option value="amazon_preorder">amazon_preorder</option>
+            <option value="amazon_regular_sale">amazon_regular_sale</option>
+            <option value="amazon_unavailable">amazon_unavailable</option>
+            <option value="amazon_excluded_marketplace">amazon_excluded_marketplace</option>
+            <option value="amazon_unknown">amazon_unknown</option>
             <option value="unknown">unknown</option>
           </select>
           <select className={inputClass} name="category" defaultValue={category}>
@@ -254,6 +265,7 @@ export default async function SourceDiscoveryPage({
                   <th className="px-4 py-3">カテゴリ</th>
                   <th className="px-4 py-3">信頼度</th>
                   <th className="px-4 py-3">AI判定</th>
+                  <th className="px-4 py-3">Auto Pilot</th>
                   <th className="px-4 py-3">Simple表示</th>
                   <th className="px-4 py-3">検索URL推定</th>
                   <th className="px-4 py-3">検索キーワード</th>
@@ -316,6 +328,11 @@ export default async function SourceDiscoveryPage({
                           <span className="text-xs text-muted-foreground">未分類</span>
                         )}
                       </td>
+                      <td className="max-w-xs px-4 py-3 text-xs leading-5">
+                        {computedStatus !== "new" ? <Badge tone="success">自動/手動登録済み</Badge> : <Badge tone="warning">未登録</Badge>}
+                        {source.aiCanAutoEnable ? <div className="mt-1 text-emerald-700">安全チェック後に自動有効化候補</div> : null}
+                        <div className="mt-1 text-muted-foreground">{autoPilotHint(source, computedStatus)}</div>
+                      </td>
                       <td className="px-4 py-3">
                         <Badge tone={isSimpleEligibleSource(source) ? "success" : "neutral"}>
                           {isSimpleEligibleSource(source) ? "表示対象" : "非表示"}
@@ -372,6 +389,8 @@ function StatusBadge({ status }: { status: string }) {
 
 function DiscoveryTypeBadge({ type }: { type: string }) {
   if (type === "current_lottery_application") return <Badge tone="success">{type}</Badge>;
+  if (type === "amazon_invitation_sale" || type === "amazon_preorder" || type === "amazon_regular_sale") return <Badge tone="success">{type}</Badge>;
+  if (type === "amazon_excluded_marketplace" || type === "amazon_unknown" || type === "amazon_unavailable") return <Badge tone="danger">{type}</Badge>;
   if (type === "price_buyback_page") return <Badge tone="primary">{type}</Badge>;
   if (type === "ended_lottery_article" || type === "lottery_news_article") return <Badge tone="danger">{type}</Badge>;
   if (type === "sales_page" || type === "official_product_page") return <Badge tone="warning">{type}</Badge>;
@@ -386,6 +405,28 @@ function SourceUsefulnessBadge({ value }: { value: string }) {
   return <Badge tone="warning">manual_review</Badge>;
 }
 
+function autoPilotHint(source: {
+  sourceUsefulness: string;
+  aiTrustLevel: string;
+  aiCanAutoRegister: boolean;
+  aiCanAutoEnable: boolean;
+  aiRiskReason: string | null;
+  searchUrlTemplateCandidate: string | null;
+  requiresReview: boolean;
+  discoveryType: string;
+  detectedType: string;
+}, computedStatus: string) {
+  if (source.aiRiskReason) return `人間の確認が必要: ${source.aiRiskReason}`;
+  if (computedStatus === "new" && source.aiCanAutoRegister) return "Auto Pilotで登録できます。";
+  if (computedStatus !== "new" && source.aiCanAutoEnable) return "Auto Pilotで安全チェック後に有効化できます。";
+  if (source.sourceUsefulness === "manual_review") return "manual_reviewのため人間の確認が必要です。";
+  if (source.requiresReview || (source.detectedType === "price_source_candidate" && !source.searchUrlTemplateCandidate)) {
+    return "searchUrlTemplateを自動推定できない場合は手動確認になります。";
+  }
+  if (source.aiTrustLevel !== "high") return `AI信頼度 ${source.aiTrustLevel} のため自動有効化は保留します。`;
+  return "Auto Pilotが次回も安全条件を評価します。";
+}
+
 function isSimpleEligibleSource(source: {
   discoveryType: string;
   aiIsLotteryApplicationPage: boolean | null;
@@ -395,6 +436,9 @@ function isSimpleEligibleSource(source: {
   aiApplicationEndAt: Date | null;
 }) {
   const now = new Date();
+  if (["amazon_invitation_sale", "amazon_preorder", "amazon_regular_sale"].includes(source.discoveryType)) {
+    return source.aiIsPastOrEnded !== true && source.aiIsJustArticle !== true;
+  }
   return (
     source.discoveryType === "current_lottery_application" &&
     source.aiIsLotteryApplicationPage === true &&

@@ -5,6 +5,12 @@ export const discoveryTypes = [
   "official_product_page",
   "price_buyback_page",
   "sales_page",
+  "amazon_invitation_sale",
+  "amazon_preorder",
+  "amazon_regular_sale",
+  "amazon_unavailable",
+  "amazon_excluded_marketplace",
+  "amazon_unknown",
   "unknown"
 ] as const;
 
@@ -70,6 +76,31 @@ const generalNoiseKeywords = [
   "商品一覧",
   "通常販売"
 ];
+const amazonAllowedDiscoveryTypes = ["amazon_invitation_sale", "amazon_preorder", "amazon_regular_sale"] as const;
+const amazonMarketplaceKeywords = [
+  "マーケットプレイス",
+  "marketplace",
+  "中古",
+  "used",
+  "コンディション",
+  "出品者",
+  "出品者一覧",
+  "こちらからもご購入いただけます",
+  "こちらからもご購入",
+  "販売元がamazon.co.jpではありません",
+  "販売元:",
+  "販売元：",
+  "発送元:",
+  "発送元：",
+  "メルカリ",
+  "ヤフオク",
+  "外部出品"
+];
+const amazonInvitationKeywords = ["招待販売", "招待リクエスト", "招待をリクエスト", "招待された", "invitation", "request invitation"];
+const amazonPreorderKeywords = ["予約販売", "予約受付", "予約注文", "pre-order", "preorder"];
+const amazonUnavailableKeywords = ["現在お取り扱いできません", "在庫切れ", "一時的に在庫切れ", "currently unavailable", "out of stock"];
+const amazonCardKeywords = ["ポケモンカード", "ポケカ", "拡張パック", "強化拡張パック", "box", "ボックス", "pokemon card"];
+const premiumPriceKeywords = ["プレ値", "プレミア価格", "高額", "定価より高い", "価格高騰"];
 
 export type DiscoveryClassificationInput = {
   url: string;
@@ -95,6 +126,8 @@ export type DiscoveryClassificationResult = {
 export function classifyDiscoveryType(input: DiscoveryClassificationInput, now = new Date()): DiscoveryClassificationResult {
   const articlePublishedAt = extractArticlePublishedAt(input.url, `${input.title} ${input.description ?? ""} ${input.rawText ?? ""}`);
   const text = `${input.title} ${input.description ?? ""} ${input.rawText ?? ""} ${input.url}`.toLowerCase();
+  const amazonClassification = classifyAmazonDiscovery(input.url, text, articlePublishedAt);
+  if (amazonClassification) return amazonClassification;
   const hardExclusion = classifyHardExclusion(input.url, text);
   if (hardExclusion) {
     return result(hardExclusion.discoveryType, articlePublishedAt, hardExclusion.reason, hardExclusion.scoreAdjustment);
@@ -186,6 +219,35 @@ export function classifyHardExclusion(url: string, text: string): { discoveryTyp
   return null;
 }
 
+export function isAllowedAmazonDiscoveryType(discoveryType: string | null | undefined) {
+  return amazonAllowedDiscoveryTypes.includes(discoveryType as (typeof amazonAllowedDiscoveryTypes)[number]);
+}
+
+export function isAmazonExcludedDiscoveryType(discoveryType: string | null | undefined) {
+  return discoveryType === "amazon_excluded_marketplace" || discoveryType === "amazon_unknown" || discoveryType === "amazon_unavailable";
+}
+
+export function isAmazonDpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, "");
+    if (host !== "amazon.co.jp") return false;
+    return /\/(?:dp|gp\/product)\/[A-Z0-9]{10}(?:[/?#]|$)/i.test(url.pathname + url.search + url.hash);
+  } catch {
+    return false;
+  }
+}
+
+export function hasAmazonMarketplaceRisk(text: string) {
+  const lower = text.toLowerCase();
+  if (amazonMarketplaceKeywords.some((keyword) => lower.includes(keyword.toLowerCase()))) {
+    if (!hasAmazonSoldByAmazon(lower)) return true;
+  }
+  if (/販売元[：:\s]+(?!amazon\.co\.jp)/i.test(text)) return true;
+  if (/発送元[：:\s]+(?!amazon\.co\.jp)/i.test(text)) return true;
+  return false;
+}
+
 export function isSimpleEligible(input: {
   discoveryType: string | null;
   aiIsLotteryApplicationPage: boolean | null;
@@ -196,6 +258,9 @@ export function isSimpleEligible(input: {
   applicationEndAt: Date | null;
 }) {
   const now = new Date();
+  if (isAllowedAmazonDiscoveryType(input.discoveryType)) {
+    return input.ignored === false && input.aiIsPastOrEnded !== true && input.aiIsJustArticle !== true;
+  }
   return (
     input.discoveryType === "current_lottery_application" &&
     input.aiIsLotteryApplicationPage === true &&
@@ -204,6 +269,66 @@ export function isSimpleEligible(input: {
     input.aiIsJustArticle === false &&
     input.ignored === false &&
     Boolean(input.applicationEndAt && input.applicationEndAt.getTime() >= now.getTime())
+  );
+}
+
+function classifyAmazonDiscovery(url: string, text: string, articlePublishedAt: Date | null): DiscoveryClassificationResult | null {
+  if (!isAmazonUrl(url)) return null;
+  if (!isAmazonDpUrl(url)) {
+    return result("amazon_excluded_marketplace", articlePublishedAt, "Amazonのdp/ASIN商品ページではないため除外", -0.8);
+  }
+
+  if (!hasAny(text, amazonCardKeywords)) {
+    return result("amazon_unknown", articlePublishedAt, "ポケモンカード/ポケカ/BOX/拡張パック系と判断できないため除外", -0.5);
+  }
+
+  if (hasAmazonMarketplaceRisk(text)) {
+    return result("amazon_excluded_marketplace", articlePublishedAt, "Amazonマーケットプレイス、中古、外部出品者、または出品者一覧の可能性があるため除外", -0.9);
+  }
+
+  if (hasAny(text, amazonUnavailableKeywords)) {
+    return result("amazon_unavailable", articlePublishedAt, "Amazon.co.jp販売でも在庫なし/取扱不可のため通常候補から除外", -0.5);
+  }
+
+  if (hasAny(text, premiumPriceKeywords)) {
+    return result("amazon_excluded_marketplace", articlePublishedAt, "定価より明らかに高いプレ値販売の可能性があるため除外", -0.7);
+  }
+
+  if (hasAny(text, amazonInvitationKeywords)) {
+    return result("amazon_invitation_sale", articlePublishedAt, "Amazon.co.jp販売の招待販売候補", 0.2);
+  }
+
+  if (hasAny(text, amazonPreorderKeywords)) {
+    return result("amazon_preorder", articlePublishedAt, "Amazon.co.jp販売の予約販売候補", 0.18);
+  }
+
+  if (hasAmazonSoldByAmazon(text)) {
+    return result("amazon_regular_sale", articlePublishedAt, "Amazon.co.jp販売の通常販売候補", 0.1);
+  }
+
+  return result("amazon_unknown", articlePublishedAt, "Amazon.co.jp販売か外部出品者か断定できないため通常候補から除外", -0.4);
+}
+
+function isAmazonUrl(value: string) {
+  try {
+    const host = new URL(value).hostname.replace(/^www\./, "");
+    return host === "amazon.co.jp";
+  } catch {
+    return false;
+  }
+}
+
+function hasAmazonSoldByAmazon(text: string) {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("amazon.co.jpが販売") ||
+    lower.includes("amazon.co.jp が販売") ||
+    lower.includes("販売元: amazon.co.jp") ||
+    lower.includes("販売元：amazon.co.jp") ||
+    lower.includes("発送元: amazon.co.jp") ||
+    lower.includes("発送元：amazon.co.jp") ||
+    lower.includes("ships from amazon.co.jp") ||
+    lower.includes("sold by amazon.co.jp")
   );
 }
 

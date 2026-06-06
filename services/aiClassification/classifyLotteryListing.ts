@@ -1,6 +1,6 @@
 import type { LotteryListing, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "@/lib/prisma";
-import { classifyDiscoveryType } from "@/services/discoveryClassification/rules";
+import { classifyDiscoveryType, isAllowedAmazonDiscoveryType, isAmazonExcludedDiscoveryType } from "@/services/discoveryClassification/rules";
 import { lotteryListingUserPrompt } from "./prompts";
 import { getAiModelLabel, requestAiClassification } from "./aiClient";
 
@@ -39,9 +39,11 @@ export async function classifyLotteryListing(listing: LotteryListing, client: Pr
       ? "ignored"
       : discoveryClassification.discoveryType === "ended_lottery_article" ||
           discoveryClassification.discoveryType === "lottery_news_article" ||
+          isAmazonExcludedDiscoveryType(discoveryClassification.discoveryType) ||
           (result.confidenceScore >= 0.7 && result.isPastOrEnded)
         ? "ended"
         : discoveryClassification.discoveryType === "current_lottery_application" ||
+            isAllowedAmazonDiscoveryType(discoveryClassification.discoveryType) ||
             (result.confidenceScore >= 0.7 && result.isLotteryApplicationPage && result.isCurrentlyOpen === true)
           ? "active"
           : listing.status;

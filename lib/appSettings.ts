@@ -28,6 +28,14 @@ export const operationSettingDefaults = {
   safeAutoEnableWatchLimit: 3,
   safeAutoEnablePriceLimit: 3,
   autoDisableFailureThreshold: 3,
+  autoPilotEnabled: true,
+  autoPilotRunOnEmptySimple: false,
+  autoPilotMaxDiscoveryCount: 80,
+  autoPilotMaxAiClassifications: 5,
+  autoPilotMaxAutoRegister: 20,
+  autoPilotMaxAutoEnable: 3,
+  autoPilotIntervalMinutes: 30,
+  autoPilotSafeEnableOnly: true,
   aiSourceCuratorRegisterLimit: 20,
   aiSourceCuratorEnableLimit: 3
 };
@@ -49,7 +57,10 @@ const booleanKeys = new Set<OperationSettingKey>([
   "priceSourceDiscoveryAutoEnableHighTrust",
   "priceSourceAutoEnableInferredTemplate",
   "safeAutoEnableWatchSources",
-  "safeAutoEnablePriceSources"
+  "safeAutoEnablePriceSources",
+  "autoPilotEnabled",
+  "autoPilotRunOnEmptySimple",
+  "autoPilotSafeEnableOnly"
 ]);
 
 export async function getOperationSettings(client: PrismaClient = defaultPrisma): Promise<OperationSettings> {
@@ -112,6 +123,18 @@ export async function getOperationSettings(client: PrismaClient = defaultPrisma)
       operationSettingDefaults.autoDisableFailureThreshold,
       1
     ),
+    autoPilotEnabled: parseBoolean(values.get("autoPilotEnabled"), operationSettingDefaults.autoPilotEnabled),
+    autoPilotRunOnEmptySimple: parseBoolean(values.get("autoPilotRunOnEmptySimple"), operationSettingDefaults.autoPilotRunOnEmptySimple),
+    autoPilotMaxDiscoveryCount: parseInteger(values.get("autoPilotMaxDiscoveryCount"), operationSettingDefaults.autoPilotMaxDiscoveryCount, 1),
+    autoPilotMaxAiClassifications: parseInteger(
+      values.get("autoPilotMaxAiClassifications"),
+      operationSettingDefaults.autoPilotMaxAiClassifications,
+      0
+    ),
+    autoPilotMaxAutoRegister: parseInteger(values.get("autoPilotMaxAutoRegister"), operationSettingDefaults.autoPilotMaxAutoRegister, 0),
+    autoPilotMaxAutoEnable: parseInteger(values.get("autoPilotMaxAutoEnable"), operationSettingDefaults.autoPilotMaxAutoEnable, 0),
+    autoPilotIntervalMinutes: parseInteger(values.get("autoPilotIntervalMinutes"), operationSettingDefaults.autoPilotIntervalMinutes, 1),
+    autoPilotSafeEnableOnly: parseBoolean(values.get("autoPilotSafeEnableOnly"), operationSettingDefaults.autoPilotSafeEnableOnly),
     aiSourceCuratorRegisterLimit: parseInteger(
       values.get("aiSourceCuratorRegisterLimit"),
       operationSettingDefaults.aiSourceCuratorRegisterLimit,
@@ -183,6 +206,26 @@ export function operationSettingsFromForm(formData: FormData): OperationSettings
       operationSettingDefaults.autoDisableFailureThreshold,
       1
     ),
+    autoPilotEnabled: formData.get("autoPilotEnabled") === "on",
+    autoPilotRunOnEmptySimple: formData.get("autoPilotRunOnEmptySimple") === "on",
+    autoPilotMaxDiscoveryCount: parseInteger(readFormValue(formData, "autoPilotMaxDiscoveryCount"), operationSettingDefaults.autoPilotMaxDiscoveryCount, 1),
+    autoPilotMaxAiClassifications: parseInteger(
+      readFormValue(formData, "autoPilotMaxAiClassifications"),
+      operationSettingDefaults.autoPilotMaxAiClassifications,
+      0
+    ),
+    autoPilotMaxAutoRegister: parseInteger(
+      readFormValue(formData, "autoPilotMaxAutoRegister"),
+      operationSettingDefaults.autoPilotMaxAutoRegister,
+      0
+    ),
+    autoPilotMaxAutoEnable: parseInteger(
+      readFormValue(formData, "autoPilotMaxAutoEnable"),
+      operationSettingDefaults.autoPilotMaxAutoEnable,
+      0
+    ),
+    autoPilotIntervalMinutes: parseInteger(readFormValue(formData, "autoPilotIntervalMinutes"), operationSettingDefaults.autoPilotIntervalMinutes, 1),
+    autoPilotSafeEnableOnly: formData.get("autoPilotSafeEnableOnly") === "on",
     aiSourceCuratorRegisterLimit: parseInteger(
       readFormValue(formData, "aiSourceCuratorRegisterLimit"),
       operationSettingDefaults.aiSourceCuratorRegisterLimit,

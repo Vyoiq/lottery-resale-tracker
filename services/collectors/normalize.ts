@@ -109,6 +109,7 @@ export function normalizeCandidate(input: {
       applicationEndAt: dates.applicationEndAt,
       purchaseDeadlineAt: dates.purchaseDeadlineAt,
       resultAnnouncementAt: dates.resultAnnouncementAt,
+      discoveryType: discoveryClassification.discoveryType,
       title: input.candidate.title,
       rawText: text
     }),

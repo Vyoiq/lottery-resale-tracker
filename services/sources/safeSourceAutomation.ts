@@ -2,6 +2,7 @@ import type { DiscoveredSource, PrismaClient } from "@prisma/client";
 import { getOperationSettings } from "@/lib/appSettings";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { hasAmazonMarketplaceRisk, isAllowedAmazonDiscoveryType, isAmazonDpUrl } from "@/services/discoveryClassification/rules";
 import { testPriceSourceTemplate } from "@/services/priceSources/templateInference";
 
 export type SafeSourceAutomationResult = {
@@ -34,8 +35,14 @@ const noiseWords = [
   "SNS"
 ];
 
-export async function runSafeSourceAutomation(client: PrismaClient = defaultPrisma): Promise<SafeSourceAutomationResult> {
+export async function runSafeSourceAutomation(
+  client: PrismaClient = defaultPrisma,
+  options: { watchLimit?: number; priceLimit?: number; minTrust?: string } = {}
+): Promise<SafeSourceAutomationResult> {
   const settings = await getOperationSettings(client);
+  const watchLimit = Math.max(0, options.watchLimit ?? settings.safeAutoEnableWatchLimit);
+  const priceLimit = Math.max(0, options.priceLimit ?? settings.safeAutoEnablePriceLimit);
+  const minTrust = options.minTrust ?? settings.safeAutoEnableMinTrust;
   const result: SafeSourceAutomationResult = {
     checkedWatchCount: 0,
     checkedPriceCount: 0,
@@ -50,19 +57,19 @@ export async function runSafeSourceAutomation(client: PrismaClient = defaultPris
 
   await autoDisableUnsafeSources(client, result, settings.autoDisableFailureThreshold);
 
-  if (settings.safeAutoEnableWatchSources && settings.safeAutoEnableWatchLimit > 0) {
+  if (settings.safeAutoEnableWatchSources && watchLimit > 0) {
     await autoEnableWatchSources(client, result, {
-      minTrust: settings.safeAutoEnableMinTrust,
-      limit: settings.safeAutoEnableWatchLimit
+      minTrust,
+      limit: watchLimit
     });
   } else {
     result.skippedReasons.push("WatchSource自動有効化は設定OFF");
   }
 
-  if (settings.safeAutoEnablePriceSources && settings.safeAutoEnablePriceLimit > 0) {
+  if (settings.safeAutoEnablePriceSources && priceLimit > 0) {
     await autoEnablePriceSources(client, result, {
-      minTrust: settings.safeAutoEnableMinTrust,
-      limit: settings.safeAutoEnablePriceLimit
+      minTrust,
+      limit: priceLimit
     });
   } else {
     result.skippedReasons.push("PriceSource自動有効化は設定OFF");
@@ -269,11 +276,17 @@ function basicWatchSafety(
   const placeholder = placeholderSourceReason(source);
   if (placeholder) return { ok: false, reason: `プレースホルダー: ${placeholder}` };
   if (!discovery) return { ok: false, reason: "AI判定元のDiscoveredSourceがありません" };
-  if (discovery.discoveryType !== "current_lottery_application") return { ok: false, reason: `discoveryType=${discovery.discoveryType}` };
+  if (discovery.discoveryType !== "current_lottery_application" && !isAllowedAmazonDiscoveryType(discovery.discoveryType)) {
+    return { ok: false, reason: `discoveryType=${discovery.discoveryType}` };
+  }
   if (!discovery.aiCanAutoEnable) return { ok: false, reason: "aiCanAutoEnable=false" };
   if (!trustAllowed(discovery.aiTrustLevel, minTrust)) return { ok: false, reason: `AI信頼度不足: ${discovery.aiTrustLevel}` };
   if (discovery.aiRiskReason) return { ok: false, reason: `riskReasonあり: ${discovery.aiRiskReason}` };
   if (discovery.aiIsPastOrEnded || discovery.aiIsJustArticle) return { ok: false, reason: "過去記事または記事ページ" };
+  if (isAllowedAmazonDiscoveryType(discovery.discoveryType) && !isAmazonDpUrl(source.url)) return { ok: false, reason: "Amazon dp/ASIN URLではありません" };
+  if (isAllowedAmazonDiscoveryType(discovery.discoveryType) && hasAmazonMarketplaceRisk(`${source.url} ${source.memo ?? ""} ${discovery.title} ${discovery.description ?? ""}`)) {
+    return { ok: false, reason: "Amazonマーケットプレイス/中古/外部出品者の可能性" };
+  }
   if (hasNoise(`${source.url} ${source.memo ?? ""} ${discovery.title} ${discovery.description ?? ""}`)) return { ok: false, reason: "ノイズキーワードあり" };
   return { ok: true, reason: "OK" };
 }
@@ -307,6 +320,15 @@ async function validateWatchUrl(url: string) {
     });
     const html = await response.text();
     if (response.status !== 200) return { success: false, reason: `HTTP ${response.status}`, length: html.length, keywords: [] };
+    if (isAmazonDpUrl(url)) {
+      const lower = html.toLowerCase();
+      const keywords = ["ポケモンカード", "ポケカ", "拡張パック", "box", "pokemon card"].filter((keyword) => lower.includes(keyword.toLowerCase()));
+      if (keywords.length === 0) return { success: false, reason: "Amazon商品ページだがポケカ/BOX系キーワードなし", length: html.length, keywords };
+      if (hasAmazonMarketplaceRisk(`${url} ${html.slice(0, 20000)}`)) {
+        return { success: false, reason: "Amazonマーケットプレイス/中古/外部出品者の可能性", length: html.length, keywords };
+      }
+      return { success: true, reason: `Amazon.co.jp販売候補 matched=${keywords.join(", ")}`, length: html.length, keywords };
+    }
     const keywords = watchKeywords.filter((keyword) => html.includes(keyword));
     if (keywords.length === 0) return { success: false, reason: "抽選/応募/トレカ系キーワードなし", length: html.length, keywords };
     if (hasNoise(`${url} ${html.slice(0, 5000)}`)) return { success: false, reason: "ノイズキーワードあり", length: html.length, keywords };

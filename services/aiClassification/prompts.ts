@@ -11,6 +11,9 @@ export const aiClassificationSystemPrompt = `
 - 過去記事、結果発表だけの記事、商品紹介記事は除外してください。
 - 買取価格ページは抽選応募ページではありません。isPriceBuybackPage=true、isLotteryApplicationPage=false にしてください。
 - 通常販売ページも抽選応募ページではありません。isProductSalesPage=true、isLotteryApplicationPage=false にしてください。
+- Amazon.co.jpの商品ページは特別扱いです。Amazon.co.jp販売の招待販売、予約販売、定価付近の通常販売だけを候補にしてください。
+- Amazonマーケットプレイス出品、中古、外部販売者、発送元/販売元がAmazon.co.jpではない商品、出品者一覧、「こちらからもご購入いただけます」系、プレ値販売は excludeReason に理由を書いて除外してください。
+- Amazonの招待販売や予約販売でも、自動で招待リクエスト・購入・ログインする前提にはしないでください。ページ分類だけを行ってください。
 - 現在応募可能か本文から断定できない場合、isCurrentlyOpen は null にしてください。
 - 締切や受付終了の文言があれば isPastOrEnded=true を優先してください。
 - 販売ページだけなら isProductSalesPage=true、買取価格ページなら isPriceBuybackPage=true にしてください。

@@ -14,8 +14,9 @@ import { runAiClassification } from "@/services/aiClassification/runAiClassifica
 import { placeholderSourceReason } from "@/lib/sourceGuards";
 import { runSourceCurator } from "@/services/sourceDiscovery/sourceCurator";
 import { runSafeSourceAutomation } from "@/services/sources/safeSourceAutomation";
+import { runAutoPilot } from "@/services/operations/autoPilotRunner";
 
-export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "price_source_discovery", "ai_classification", "source_curator", "safe_source_enable", "cleanup_ended", "full_run"] as const;
+export const operationRunTypes = ["collect", "price_collect", "notifications", "backup", "source_discovery", "price_source_discovery", "ai_classification", "source_curator", "safe_source_enable", "cleanup_ended", "autopilot", "full_run"] as const;
 export type OperationRunType = (typeof operationRunTypes)[number];
 
 export type OperationStepResult = {
@@ -136,6 +137,7 @@ export function operationTypeLabel(type: string) {
     safe_source_enable: "安全チェック済みソース自動有効化",
     reclassify_sources: "ソース再判定",
     cleanup_ended: "終了済み再判定",
+    autopilot: "Auto Pilot",
     restore_backup: "バックアップ復元",
     full_run: "一括実行"
   }[type] ?? type;
@@ -323,6 +325,14 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
         (result.enabledReasons.length > 0 ? `\n\n自動有効化理由:\n${result.enabledReasons.join("\n")}` : "") +
         (result.skippedReasons.length > 0 ? `\n\n自動有効化できなかった理由:\n${result.skippedReasons.join("\n")}` : "") +
         (result.disabledReasons.length > 0 ? `\n\n自動無効化理由:\n${result.disabledReasons.join("\n")}` : "")
+    };
+  }
+
+  if (type === "autopilot") {
+    const result = await runAutoPilot(client, { force: true, trigger: "operation_task" });
+    return {
+      success: result.success,
+      message: result.message
     };
   }
 

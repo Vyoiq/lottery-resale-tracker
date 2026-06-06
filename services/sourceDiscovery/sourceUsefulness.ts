@@ -1,4 +1,5 @@
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { isAllowedAmazonDiscoveryType, isAmazonExcludedDiscoveryType } from "@/services/discoveryClassification/rules";
 
 export type SourceUsefulness = "watch_source" | "price_source" | "both" | "ignore" | "manual_review";
 export type SourceRecommendedAction = "add_watch_source" | "add_price_source" | "add_both" | "ignore" | "manual_review";
@@ -35,6 +36,7 @@ export function evaluateSourceUsefulness(input: SourceUsefulnessInput) {
     input.aiIsPriceBuybackPage === true;
   const isWatchCandidate =
     input.discoveryType === "current_lottery_application" ||
+    isAllowedAmazonDiscoveryType(input.discoveryType) ||
     (input.aiIsLotteryApplicationPage === true && input.aiIsCurrentlyOpen === true && input.aiIsPastOrEnded !== true);
   const hasTemplate = Boolean(input.searchUrlTemplateCandidate?.includes("{keyword}"));
 
@@ -96,7 +98,10 @@ function getRiskReasons(input: SourceUsefulnessInput) {
   if (input.aiExcludeReason) risks.push(input.aiExcludeReason);
   if (input.discoveryType === "ended_lottery_article") risks.push("過去の抽選記事です。");
   if (input.discoveryType === "lottery_news_article") risks.push("ニュース記事であり応募ページではありません。");
-  if (input.discoveryType === "sales_page" || input.aiIsProductSalesPage === true) risks.push("通常販売ページです。");
+  if ((input.discoveryType === "sales_page" || input.aiIsProductSalesPage === true) && !isAllowedAmazonDiscoveryType(input.discoveryType)) {
+    risks.push("通常販売ページです。");
+  }
+  if (isAmazonExcludedDiscoveryType(input.discoveryType)) risks.push("Amazonマーケットプレイス、中古、外部販売者、在庫なし、またはAmazon販売と断定できない商品です。");
   if (input.aiIsJustArticle === true) risks.push("記事ページです。");
   if (input.aiIsPastOrEnded === true) risks.push("AIが過去または終了済みと判定しています。");
   if (input.discoveryType === "unknown" && input.detectedType === "unknown") risks.push("監視ソース/価格ソースとしての根拠が不足しています。");
