@@ -341,7 +341,7 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </form>
       </Card>
 
-      {listings.length === 0 ? <SimplePokemonEmptyGuidance diagnostics={diagnostics} /> : null}
+      {listings.length === 0 ? <SimplePokemonFocusedEmptyGuidance diagnostics={diagnostics} /> : null}
 
       {false && listings.length === 0 ? (
         <EmptyState
@@ -374,6 +374,29 @@ function SimplePokemonEmptyGuidance({ diagnostics }: { diagnostics: Awaited<Retu
       </div>
       <div className="mt-3 text-xs text-amber-800">
         詳細を見る: <Link href="/operation-runs" className="underline">運用ログ</Link> / <Link href="/source-discovery" className="underline">候補診断</Link>
+      </div>
+    </Card>
+  );
+}
+
+function SimplePokemonFocusedEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<typeof getSimpleDiagnostics>> }) {
+  return (
+    <Card className="border-amber-200 bg-amber-50/70 p-5">
+      <h2 className="text-lg font-semibold text-amber-950">ポケカ抽選候補を探しています</h2>
+      <p className="mt-2 text-sm leading-6 text-amber-900">
+        抽選販売・Amazon招待/予約・買取価格を自動で確認しています。安全条件を満たす候補だけを表示し、
+        ポケモンカード以外の候補は自動除外しています。自動応募・自動購入は行いません。
+      </p>
+      <div className="mt-4 grid gap-2 text-sm text-amber-950 md:grid-cols-2">
+        <div className="rounded-md border border-amber-200 bg-white/60 px-3 py-2">受付中候補: {diagnostics.currentDiscoveryCandidateCount}件</div>
+        <div className="rounded-md border border-amber-200 bg-white/60 px-3 py-2">買取価格候補: {diagnostics.priceDiscoveryCandidateCount}件</div>
+        <div className="rounded-md border border-amber-200 bg-white/60 px-3 py-2">価格取得済み候補: {diagnostics.priceFoundListingCount}件</div>
+        <div className="rounded-md border border-amber-200 bg-white/60 px-3 py-2">
+          現在は安全条件を満たす買取価格ソースが{diagnostics.enabledRealPriceSourceCount > 0 ? `${diagnostics.enabledRealPriceSourceCount}件あります` : "ありません"}
+        </div>
+      </div>
+      <div className="mt-3 text-xs text-amber-800">
+        詳細を見る: <Link href="/operation-runs" className="underline">運用ログ</Link> / <Link href="/source-discovery" className="underline">候補診断</Link> / <Link href="/price-sources" className="underline">価格ソース診断</Link>
       </div>
     </Card>
   );

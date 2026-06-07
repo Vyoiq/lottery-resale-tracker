@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { getOperationSettings } from "@/lib/appSettings";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { pokemonSourceGate } from "@/lib/pokemonFilters";
 import { recalculateAllListingPriorities } from "@/lib/priorityService";
 import { createBackup, pruneBackups } from "@/services/backups/backupService";
 import { runCollectors } from "@/services/collectors/base";
@@ -93,7 +94,16 @@ export async function runAutoPilot(
     });
     lines.push(`自動有効化 WatchSource ${safe.watchAutoEnabledCount} 件 / PriceSource ${safe.priceAutoEnabledCount} 件`);
     lines.push(`自動無効化 WatchSource ${safe.watchAutoDisabledCount} 件 / PriceSource ${safe.priceAutoDisabledCount} 件`);
-    if (safe.skippedReasons.length > 0) lines.push(`自動有効化できなかった理由:\n${safe.skippedReasons.slice(0, 20).join("\n")}`);
+    if (safe.skippedReasons.length > 0) {
+      const visibleSafeSkippedReasons = safe.skippedReasons.filter((reason) => !isPokemonNoiseLine(reason));
+      const hiddenNoiseCount = safe.skippedReasons.length - visibleSafeSkippedReasons.length;
+      lines.push(
+        `自動有効化できなかった理由:\n${[
+          hiddenNoiseCount > 0 ? `ポケカ対象外/ノイズとして除外: ${hiddenNoiseCount} 件` : null,
+          ...visibleSafeSkippedReasons.slice(0, 12)
+        ].filter(Boolean).join("\n")}`
+      );
+    }
 
     const collect = await runCollectors();
     lines.push(`抽選収集 新規 ${collect.newListingCount} 件 / 更新 ${collect.updatedListingCount} 件 / スキップ ${collect.skippedCount} 件 / エラー ${collect.errorCount} 件`);
@@ -120,6 +130,8 @@ export async function runAutoPilot(
 
     const simpleEligibleCount = await countSimpleEligible(client);
     const nextActions = await getAutoPilotNextActions(client, simpleEligibleCount);
+    const pokemonSummary = await getPokemonAutoPilotSummary(client, simpleEligibleCount);
+    lines.push(`ポケカ特化サマリー:\n${pokemonSummary.map((line) => `- ${line}`).join("\n")}`);
     lines.push(`最終的に /simple に表示可能な候補 ${simpleEligibleCount} 件`);
     if (nextActions.length > 0) lines.push(`次に必要なアクション:\n${nextActions.map((action) => `- ${action}`).join("\n")}`);
 
@@ -146,7 +158,7 @@ export async function runAutoPilot(
       prices.errorCount > 0 ? `価格取得でエラー ${prices.errorCount} 件` : null
     ].filter(Boolean);
     const manual = [
-      ...safe.skippedReasons.slice(0, 8),
+      ...safe.skippedReasons.filter((reason) => !isPokemonNoiseLine(reason)).slice(0, 8),
       ...nextActions.filter((action) => action.includes("自動処理では安全に有効化できませんでした") || action.includes("manual_review"))
     ];
     lines.push(`自動で解決できたこと:\n${solved.length > 0 ? solved.map((item) => `- ${item}`).join("\n") : "- 今回は安全に自動解決できる項目がありませんでした"}`);
@@ -217,6 +229,87 @@ async function countSimpleEligible(client: PrismaClient) {
     select: { sourceName: true, sourceUrl: true }
   });
   return listings.filter((listing) => !placeholderSourceReason({ name: listing.sourceName, url: listing.sourceUrl })).length;
+}
+
+async function getPokemonAutoPilotSummary(client: PrismaClient, simpleEligibleCount: number) {
+  const [discovered, priceSources, enabledPriceSources] = await Promise.all([
+    client.discoveredSource.findMany({
+      where: { status: "new" },
+      select: {
+        title: true,
+        description: true,
+        normalizedUrl: true,
+        reason: true,
+        matchedKeywords: true,
+        rawText: true,
+        discoveryType: true,
+        detectedType: true,
+        aiRiskReason: true,
+        aiExcludeReason: true
+      },
+      take: 500
+    }),
+    client.priceSource.findMany({
+      select: { name: true, shopName: true, baseUrl: true, memo: true, searchUrlTemplate: true, lastError: true },
+      take: 500
+    }),
+    client.priceSource.count({ where: { enabled: true, searchUrlTemplate: { contains: "{keyword}" } } })
+  ]);
+
+  const watchCandidates = discovered.filter((source) => pokemonSourceGate(source, "watch").ok);
+  const amazonCandidates = discovered.filter((source) =>
+    ["amazon_invitation_sale", "amazon_preorder", "amazon_regular_sale"].includes(source.discoveryType)
+  );
+  const priceCandidates = discovered.filter((source) => pokemonSourceGate(source, "price").ok);
+  const pokemonExcluded = discovered.filter((source) => {
+    const watch = pokemonSourceGate(source, "watch");
+    const price = pokemonSourceGate(source, "price");
+    return !watch.hasPokemon && !price.hasPokemon;
+  });
+  const noiseExcluded = discovered.filter((source) => {
+    const reasons = [...pokemonSourceGate(source, "watch").reasons, ...pokemonSourceGate(source, "price").reasons];
+    return reasons.some((reason) => reason.includes("対象外") || reason.includes("ニュース") || reason.includes("記事"));
+  });
+  const templateOutOfScope = priceSources.filter((source) => {
+    if (source.searchUrlTemplate.includes("{keyword}")) return false;
+    return !pokemonSourceGate({ title: source.name, description: `${source.shopName} ${source.memo ?? ""} ${source.lastError ?? ""}`, url: source.baseUrl }, "price").ok;
+  });
+
+  const rootCauses: string[] = [];
+  if (watchCandidates.length === 0) rootCauses.push("現在受付中と判断できるポケカ抽選候補がありません");
+  if (enabledPriceSources === 0) rootCauses.push("安全条件を満たす有効なポケカ買取PriceSourceがありません");
+  if (priceSources.some((source) => !source.searchUrlTemplate.includes("{keyword}"))) rootCauses.push("searchUrlTemplate未推定のPriceSourceがあります");
+  if (simpleEligibleCount === 0) rootCauses.push("価格取得済みかつ利益計算可能な受付中候補がありません");
+
+  return [
+    `ポケカ抽選候補 ${watchCandidates.length} 件`,
+    `Amazon招待/予約候補 ${amazonCandidates.length} 件`,
+    `ポケカ買取価格候補 ${priceCandidates.length} 件`,
+    `ノイズ除外相当 ${noiseExcluded.length} 件`,
+    `ポケカ以外で除外相当 ${pokemonExcluded.length} 件`,
+    `searchUrlTemplate推定対象外 ${templateOutOfScope.length} 件`,
+    `/simple に表示できない主因: ${rootCauses.length > 0 ? rootCauses.join(" / ") : "なし"}`
+  ];
+}
+
+function isPokemonNoiseLine(value: string) {
+  return [
+    "格安SIM",
+    "スマホ",
+    "タブレット",
+    "リズム天国",
+    "デジモン",
+    "ゲーム特集",
+    "家電",
+    "通信契約",
+    "WiMAX",
+    "geo-online.co.jp/campaign/special/other/geomobile",
+    "プレースホルダー",
+    "要確認",
+    "サンプル",
+    "ポケモンカード対象外",
+    "ポケモンカード系キーワードなし"
+  ].some((keyword) => value.includes(keyword));
 }
 
 async function getAutoPilotNextActions(client: PrismaClient, simpleEligibleCount: number) {

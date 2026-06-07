@@ -828,6 +828,19 @@ Auto Pilotは標準運用です。`/simple` に表示候補がない、有効な
 
 詳細画面の `/sources`、`/price-sources`、`/source-discovery`、`/settings/operations`、`/operation-runs` は診断と運用ログ用です。通常は `/simple` を見れば判断できる状態を目指します。
 
+### ポケカ特化フィルター
+
+Source Discovery / PriceSource Discovery は、ポケモンカード系キーワードと用途キーワードの両方を満たす候補だけを優先します。
+
+- WatchSource 候補: `ポケモンカード`、`ポケカ`、`ポケモンセンター`、`BOX`、`拡張パック`、`スペシャルBOX` などに加えて、`抽選`、`応募`、`受付`、`予約`、`招待`、`抽選販売` などが必要です
+- PriceSource 候補: `ポケモンカード`、`ポケカ`、`BOX`、`スペシャルBOX`、`拡張パック` などに加えて、`買取`、`買取価格`、`買取表`、`高価買取`、`未開封買取`、`買取検索` などが必要です
+- 格安SIM、スマホ、タブレット、リズム天国、デジモン、ゲーム特集、家電、通信契約、WiMAX、ニュース記事、PR記事、汎用キャンペーン、GEOのポケモンカード以外のキャンペーンは除外します
+- `pokemoncenter-online.com` や `pokemon-card.com` は公式商品/告知ページとして扱い、買取価格の `searchUrlTemplate` 推定対象から外します
+
+ポケカ買取ソースは、固定候補プリセットも用意しています。ただし、プリセットは `enabled=false` で追加されます。Auto Pilot が HTTP 200、買取系HTML、`searchUrlTemplate` 推定、テスト取得、`{keyword}` 付きテンプレート、販売ページではないことを確認できた場合だけ、自動有効化候補になります。
+
+`npm run autopilot` の最後には、ポケカ抽選候補、Amazon招待/予約候補、ポケカ買取価格候補、ノイズ除外件数、ポケカ以外で除外した件数、`searchUrlTemplate` 推定対象外にした件数、`/simple` に表示できない主因を表示します。
+
 確認場所:
 - `/source-discovery` で AI の抽選応募ページ判定、受付中判定、理由、除外理由を確認
 - `/settings/operations` の `AI分類` ボタンで手動実行

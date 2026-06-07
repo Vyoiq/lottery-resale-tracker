@@ -68,6 +68,26 @@ export async function runOperationTask(type: OperationRunType, client: PrismaCli
   }
 }
 
+function isPokemonNoiseLine(value: string) {
+  return [
+    "格安SIM",
+    "スマホ",
+    "タブレット",
+    "リズム天国",
+    "デジモン",
+    "ゲーム特集",
+    "家電",
+    "通信契約",
+    "WiMAX",
+    "geo-online.co.jp/campaign/special/other/geomobile",
+    "プレースホルダー",
+    "要確認",
+    "サンプル",
+    "ポケモンカード対象外",
+    "ポケモンカード系キーワードなし"
+  ].some((keyword) => value.includes(keyword));
+}
+
 export async function runFullOperation(client: PrismaClient = defaultPrisma): Promise<OperationStepResult> {
   const settings = await getOperationSettings(client);
   const fullRun = await client.operationRun.create({
@@ -339,6 +359,9 @@ async function executeSingleTask(type: Exclude<OperationRunType, "full_run">, cl
 
   if (type === "safe_source_enable") {
     const result = await runSafeSourceAutomation(client);
+    const hiddenNoiseCount = result.skippedReasons.filter((reason) => isPokemonNoiseLine(reason)).length;
+    result.skippedReasons = result.skippedReasons.filter((reason) => !isPokemonNoiseLine(reason));
+    if (hiddenNoiseCount > 0) result.skippedReasons.unshift(`ポケカ対象外/ノイズとして除外: ${hiddenNoiseCount} 件`);
     return {
       success: true,
       message: [

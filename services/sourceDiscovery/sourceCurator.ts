@@ -2,6 +2,7 @@ import type { DiscoveredSource, PrismaClient } from "@prisma/client";
 import { getOperationSettings } from "@/lib/appSettings";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { hasBuybackIntent, hasLotterySaleIntent, hasPokemonCardContext, pokemonSourceGate } from "@/lib/pokemonFilters";
 import { isAllowedAmazonDiscoveryType, isAmazonDpUrl, hasAmazonMarketplaceRisk } from "@/services/discoveryClassification/rules";
 import { inferAndSavePriceSourceTemplate, inferTemplatesForBasePriceSources } from "@/services/priceSources/templateInference";
 import { addDiscoveredSourceAsPriceSource, addDiscoveredSourceAsWatchSource } from "./discoveryRunner";
@@ -221,6 +222,7 @@ export async function runSourceCurator(
 }
 
 function isWatchCandidate(source: DiscoveredSource) {
+  if (!pokemonSourceGate(source, "watch").ok) return false;
   return (
     watchUsefulness.has(source.sourceUsefulness) ||
     watchActions.has(source.aiRecommendedAction) ||
@@ -230,6 +232,7 @@ function isWatchCandidate(source: DiscoveredSource) {
 }
 
 function isPriceCandidate(source: DiscoveredSource) {
+  if (!pokemonSourceGate(source, "price").ok) return false;
   return (
     priceUsefulness.has(source.sourceUsefulness) ||
     priceActions.has(source.aiRecommendedAction) ||
@@ -267,7 +270,7 @@ function hasBuybackKeyword(source: DiscoveredSource) {
   ]
     .filter(Boolean)
     .join(" ");
-  return buybackKeywords.some((keyword) => text.includes(keyword));
+  return hasPokemonCardContext(text) && hasBuybackIntent(text);
 }
 
 function buildConditionReason(source: DiscoveredSource, watchCandidate: boolean, priceCandidate: boolean) {
@@ -290,6 +293,9 @@ async function validateWatchSourceCandidate(url: string) {
     });
     if (response.status !== 200) return { success: false, reason: `HTTP ${response.status}` };
     const text = (await response.text()).slice(0, 80000);
+    if (!isAmazonDpUrl(url) && hasPokemonCardContext(text) && hasLotterySaleIntent(text)) {
+      return { success: true, reason: "ポケモンカード系キーワードと抽選/応募/予約/招待キーワードを確認済み" };
+    }
     if (isAmazonDpUrl(url)) {
       const lower = text.toLowerCase();
       const hasCard = ["ポケモンカード", "ポケカ", "拡張パック", "box", "pokemon card"].some((keyword) => lower.includes(keyword.toLowerCase()));

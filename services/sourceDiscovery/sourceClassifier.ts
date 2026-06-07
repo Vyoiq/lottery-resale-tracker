@@ -1,5 +1,6 @@
 import type { DiscoveryQuery } from "@prisma/client";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { pokemonBroadTerms, pokemonSourceGate } from "@/lib/pokemonFilters";
 import { classifyDiscoveryType, type DiscoveryType } from "@/services/discoveryClassification/rules";
 import { evaluateSourceUsefulness } from "./sourceUsefulness";
 import { hostName, inferSearchUrlTemplate, normalizeDiscoveredUrl } from "./queryBuilder";
@@ -126,9 +127,24 @@ export function classifySourceCandidate(input: {
   if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) return null;
   if (placeholderSourceReason({ name: input.title, url: normalizedUrl, memo: input.description })) return null;
 
+  const gateMode = input.query.type === "price_source" ? "price" : input.query.type === "watch_source" ? "watch" : "either";
+  const pokemonGate = pokemonSourceGate(
+    { title: input.title, description: input.description, normalizedUrl },
+    gateMode
+  );
+  if (!pokemonGate.ok) return null;
+
   const matchedExclusions = exclusionKeywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));
-  const matchedWatch = watchKeywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));
-  const matchedPrice = priceKeywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));
+  const matchedWatch = Array.from(new Set([
+    ...watchKeywords.filter((keyword) => haystack.includes(keyword.toLowerCase())),
+    ...pokemonGate.matchedLottery,
+    ...pokemonGate.matchedPokemon.filter((keyword) => pokemonBroadTerms.includes(keyword))
+  ]));
+  const matchedPrice = Array.from(new Set([
+    ...priceKeywords.filter((keyword) => haystack.includes(keyword.toLowerCase())),
+    ...pokemonGate.matchedBuyback,
+    ...pokemonGate.matchedPokemon.filter((keyword) => pokemonBroadTerms.includes(keyword))
+  ]));
   const inferredTemplate = inferSearchUrlTemplate(normalizedUrl);
   const discoveryClassification = classifyDiscoveryType({
     url: normalizedUrl,
@@ -159,7 +175,7 @@ export function classifySourceCandidate(input: {
             ? "watch_source_candidate"
             : "unknown";
 
-  const matchedKeywords = Array.from(new Set([...matchedWatch, ...matchedPrice]));
+  const matchedKeywords = Array.from(new Set([...matchedWatch, ...matchedPrice, ...pokemonGate.matchedPokemon]));
   const confidenceScore = Math.max(0, Math.min(1, Number(score.toFixed(2))));
   const reasonParts = [
     matchedKeywords.length > 0 ? `一致キーワード: ${matchedKeywords.join(", ")}` : "明確な一致キーワードが少ない",

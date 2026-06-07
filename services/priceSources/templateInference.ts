@@ -2,8 +2,11 @@ import type { PriceSource, PrismaClient } from "@prisma/client";
 import { getOperationSettings } from "@/lib/appSettings";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { hasBuybackIntent, hasPokemonCardContext, isOfficialNonBuybackUrl, pokemonSourceGate } from "@/lib/pokemonFilters";
 
 const searchParamNames = ["q", "query", "keyword", "word", "search", "name"];
+const pokemonPriceTestKeywords = ["スペシャルBOX ポケモンセンターヒロシマ", "ポケモンカード BOX", "ポケカ BOX"];
+const cleanSalesOnlyKeywords = ["販売価格", "通販価格", "在庫", "売り切れ", "カートに入れる", "購入"];
 const testKeywords = ["スペシャルBOX ポケモンセンターヒロシマ", "ポケモンカード BOX", "ポケカ BOX"];
 const buybackKeywords = ["買取", "買取価格", "買取表", "高価買取", "未開封買取", "ポケカ", "ポケモンカード", "トレカ"];
 const salesOnlyKeywords = ["販売価格", "通販価格", "在庫", "売り切れ", "カートに入れる"];
@@ -60,6 +63,20 @@ export async function inferAndSavePriceSourceTemplate(
   if (placeholderSourceReason(source)) {
     result.inferenceFailedCount = 1;
     addReason(result, "プレースホルダーURLのため推定しません");
+    return result;
+  }
+
+  const gate = pokemonSourceGate(
+    { title: source.name, description: source.memo, url: source.baseUrl, normalizedUrl: source.baseUrl },
+    "price"
+  );
+  if (!gate.ok || isOfficialNonBuybackUrl(source.baseUrl)) {
+    const reason = [...gate.reasons, isOfficialNonBuybackUrl(source.baseUrl) ? "公式/商品情報サイトで買取ページではありません" : null]
+      .filter(Boolean)
+      .join(" / ");
+    result.inferenceFailedCount = 1;
+    addReason(result, `${source.shopName}: searchUrlTemplate推定対象外 (${reason})`);
+    await markInferenceFailure(client, source.id, `searchUrlTemplate推定対象外: ${reason}`);
     return result;
   }
 
@@ -167,11 +184,16 @@ export async function testPriceSourceTemplate(template: string) {
   if (!template.includes("{keyword}")) return { success: false, reason: "{keyword} がありません", httpStatus: null as number | null };
   if (/example\.com|placeholder/i.test(template)) return { success: false, reason: "プレースホルダーURLです", httpStatus: null as number | null };
 
-  for (const keyword of testKeywords) {
+  for (const keyword of pokemonPriceTestKeywords) {
     const url = template.replace("{keyword}", encodeURIComponent(keyword));
     try {
       const response = await fetchText(url);
       const text = response.html.slice(0, 120000);
+      const cleanHasBuyback = hasPokemonCardContext(text) && hasBuybackIntent(text);
+      const cleanSalesOnly = cleanSalesOnlyKeywords.some((word) => text.includes(word)) && !cleanHasBuyback;
+      if (response.status === 200 && cleanHasBuyback && !cleanSalesOnly) {
+        return { success: true, reason: "ポケモンカード買取HTMLを確認しました", httpStatus: response.status };
+      }
       const hasBuyback = buybackKeywords.some((word) => text.includes(word));
       const salesOnly = salesOnlyKeywords.some((word) => text.includes(word)) && !text.includes("買取");
       if (response.status === 200 && hasBuyback && !salesOnly) {

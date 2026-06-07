@@ -2,6 +2,7 @@ import type { DiscoveredSource, PrismaClient } from "@prisma/client";
 import { getOperationSettings } from "@/lib/appSettings";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { hasBuybackIntent, hasLotterySaleIntent, hasPokemonCardContext, pokemonSourceGate } from "@/lib/pokemonFilters";
 import { hasAmazonMarketplaceRisk, isAllowedAmazonDiscoveryType, isAmazonDpUrl } from "@/services/discoveryClassification/rules";
 import { testPriceSourceTemplate } from "@/services/priceSources/templateInference";
 
@@ -296,6 +297,7 @@ function basicWatchSafety(
   if (!isAllowedAmazonDiscoveryType(discovery.discoveryType) && !containsAny(combined, lotteryActionKeywords)) {
     return { ok: false, reason: "抽選/応募/受付/予約/招待系キーワードなし" };
   }
+  return { ok: true, reason: "OK" };
   const priceCombined = "";
   if (!containsAny(combined, pokemonKeywords)) return { ok: false, reason: "ポケモンカード/ポケカ/BOX系キーワードなし" };
   if (!containsAny(combined, buybackKeywords)) return { ok: false, reason: "買取/買取価格/買取表/高価買取/未開封買取キーワードなし" };
@@ -307,6 +309,13 @@ function basicPriceSafety(
   source: { shopName: string; baseUrl: string; searchUrlTemplate: string; memo: string | null },
   minTrust: string
 ) {
+  const pokemonGate = pokemonSourceGate({
+    title: source.shopName,
+    description: `${source.memo ?? ""} ${discovery?.title ?? ""} ${discovery?.description ?? ""}`,
+    url: source.baseUrl,
+    normalizedUrl: source.searchUrlTemplate
+  }, "price");
+  if (!pokemonGate.ok) return { ok: false, reason: pokemonGate.reasons.join(" / ") };
   const placeholder = placeholderSourceReason(source);
   if (placeholder) return { ok: false, reason: `プレースホルダー: ${placeholder}` };
   if (!source.searchUrlTemplate.includes("{keyword}")) return { ok: false, reason: "searchUrlTemplate未設定" };

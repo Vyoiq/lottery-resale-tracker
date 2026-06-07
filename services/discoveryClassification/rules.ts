@@ -1,3 +1,5 @@
+import { pokemonSourceGate } from "@/lib/pokemonFilters";
+
 export const discoveryTypes = [
   "current_lottery_application",
   "ended_lottery_article",
@@ -190,6 +192,14 @@ export function classifyDiscoveryType(input: DiscoveryClassificationInput, now =
 export function classifyHardExclusion(url: string, text: string): { discoveryType: DiscoveryType; reason: string; scoreAdjustment: number } | null {
   const lowerUrl = url.toLowerCase();
   const lowerText = text.toLowerCase();
+  const pokemonEitherGate = pokemonSourceGate({ title: lowerText, url: lowerUrl }, "either");
+  if (!pokemonEitherGate.ok) {
+    return {
+      discoveryType: "unknown",
+      reason: `除外: ${pokemonEitherGate.reasons.join(" / ")}`,
+      scoreAdjustment: -1
+    };
+  }
   const host = safeHost(lowerUrl);
   const isYodobashi = host.endsWith("yodobashi.com") || host.endsWith("yodobashi.co.jp") || lowerUrl.includes("yodobashi");
   const hasRelevantCardKeyword = hasAny(lowerText, relevantCardKeywords);

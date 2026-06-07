@@ -1,4 +1,5 @@
 import { placeholderSourceReason } from "@/lib/sourceGuards";
+import { pokemonSourceGate } from "@/lib/pokemonFilters";
 import { isAllowedAmazonDiscoveryType, isAmazonExcludedDiscoveryType } from "@/services/discoveryClassification/rules";
 
 export type SourceUsefulness = "watch_source" | "price_source" | "both" | "ignore" | "manual_review";
@@ -28,16 +29,22 @@ export type SourceUsefulnessInput = {
 
 export function evaluateSourceUsefulness(input: SourceUsefulnessInput) {
   const riskReasons = getRiskReasons(input);
+  const watchGate = pokemonSourceGate(input, "watch");
+  const priceGate = pokemonSourceGate(input, "price");
+  const pokemonRiskReasons = Array.from(new Set([...watchGate.reasons, ...priceGate.reasons]));
+  if (!watchGate.ok && !priceGate.ok) riskReasons.push(...pokemonRiskReasons);
   const riskReason = riskReasons.length > 0 ? riskReasons.join(" / ") : null;
   const confidence = Math.max(input.confidenceScore ?? 0, input.aiConfidenceScore ?? 0);
   const isPriceCandidate =
-    input.discoveryType === "price_buyback_page" ||
-    input.detectedType === "price_source_candidate" ||
-    input.aiIsPriceBuybackPage === true;
+    priceGate.ok &&
+    (input.discoveryType === "price_buyback_page" ||
+      input.detectedType === "price_source_candidate" ||
+      input.aiIsPriceBuybackPage === true);
   const isWatchCandidate =
-    input.discoveryType === "current_lottery_application" ||
-    isAllowedAmazonDiscoveryType(input.discoveryType) ||
-    (input.aiIsLotteryApplicationPage === true && input.aiIsCurrentlyOpen === true && input.aiIsPastOrEnded !== true);
+    watchGate.ok &&
+    (input.discoveryType === "current_lottery_application" ||
+      isAllowedAmazonDiscoveryType(input.discoveryType) ||
+      (input.aiIsLotteryApplicationPage === true && input.aiIsCurrentlyOpen === true && input.aiIsPastOrEnded !== true));
   const hasTemplate = Boolean(input.searchUrlTemplateCandidate?.includes("{keyword}"));
 
   if (riskReason) {

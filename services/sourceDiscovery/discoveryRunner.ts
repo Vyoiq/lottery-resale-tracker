@@ -20,6 +20,49 @@ const providers: SearchProvider[] = [
   manualFallbackProvider
 ];
 
+const pokemonBuybackPriceSourcePresets = [
+  {
+    name: "カードラッシュ ポケモンカード買取候補",
+    shopName: "カードラッシュ",
+    baseUrl: "https://www.cardrush-pokemon.jp/",
+    searchUrlTemplate: "https://www.cardrush-pokemon.jp/#template-unset",
+    category: "pokemon",
+    description: "ポケモンカード系の公開買取ページ候補です。Auto Pilotがテンプレート推定とテスト取得に成功した場合だけ利用候補にします。",
+    tags: "pokemon,ポケカ,買取,買取価格,BOX",
+    memo: "候補URLです。自動有効化はHTTP 200、買取系HTML、searchUrlTemplate推定、テスト取得成功が揃った場合のみです。"
+  },
+  {
+    name: "フルアヘッド ポケモンカード買取候補",
+    shopName: "フルアヘッド",
+    baseUrl: "https://www.fullahead-pokemon.com/",
+    searchUrlTemplate: "https://www.fullahead-pokemon.com/#template-unset",
+    category: "pokemon",
+    description: "ポケモンカード系の公開買取ページ候補です。販売ページだけと判定された場合は有効化しません。",
+    tags: "pokemon,ポケカ,買取,買取表,BOX",
+    memo: "候補URLです。Auto Pilotが安全条件を満たさない場合は enabled=false のままにします。"
+  },
+  {
+    name: "遊々亭 ポケモンカード買取候補",
+    shopName: "遊々亭",
+    baseUrl: "https://yuyu-tei.jp/",
+    searchUrlTemplate: "https://yuyu-tei.jp/#template-unset",
+    category: "pokemon",
+    description: "ポケモンカード系の公開買取ページ候補です。ログイン不要の公開ページだけを対象にします。",
+    tags: "pokemon,ポケカ,買取,買取価格,トレカ",
+    memo: "候補URLです。searchUrlTemplateはAuto Pilotがフォームやリンクから推定します。"
+  },
+  {
+    name: "トレコロ ポケモンカード買取候補",
+    shopName: "トレコロ",
+    baseUrl: "https://www.torecolo.jp/",
+    searchUrlTemplate: "https://www.torecolo.jp/#template-unset",
+    category: "pokemon",
+    description: "ポケモンカード系の公開買取ページ候補です。買取検索ページとしてテスト成功した場合だけ利用候補にします。",
+    tags: "pokemon,ポケカ,買取,買取検索,BOX",
+    memo: "候補URLです。Auto Pilotが安全条件を満たさない場合は enabled=false のままにします。"
+  }
+] as const;
+
 const pokemonWatchDiscoveryQueries = [
   { name: "ポケモンカード 抽選販売 受付中", query: "ポケモンカード 抽選販売 受付中", category: "pokemon" },
   { name: "ポケカ 抽選販売 受付中", query: "ポケカ 抽選販売 受付中", category: "pokemon" },
@@ -116,6 +159,7 @@ async function runDiscovery(input: {
   }
   if (input.mode === "price") {
     await ensureCurrentPriceDiscoveryQueries(input.client);
+    await ensurePokemonBuybackPriceSourcePresets(input.client);
   }
   const forcedQueries =
     input.mode === "price"
@@ -240,6 +284,30 @@ async function ensureCurrentWatchDiscoveryQueries(client: PrismaClient) {
 
 async function ensureCurrentPriceDiscoveryQueries(client: PrismaClient) {
   await ensureDiscoveryQueries(client, pokemonPriceDiscoveryQueries, "price_source");
+}
+
+async function ensurePokemonBuybackPriceSourcePresets(client: PrismaClient) {
+  for (const preset of pokemonBuybackPriceSourcePresets) {
+    await client.priceSourcePreset.upsert({
+      where: { searchUrlTemplate: preset.searchUrlTemplate },
+      create: {
+        ...preset,
+        defaultEnabled: false,
+        recommended: true
+      },
+      update: {
+        name: preset.name,
+        shopName: preset.shopName,
+        baseUrl: preset.baseUrl,
+        category: preset.category,
+        description: preset.description,
+        recommended: true,
+        tags: preset.tags,
+        memo: preset.memo,
+        defaultEnabled: false
+      }
+    });
+  }
 }
 
 async function ensureDiscoveryQueries(

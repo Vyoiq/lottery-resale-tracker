@@ -211,6 +211,59 @@ async function main() {
     ]
   });
 
+  await prisma.priceSourcePreset.createMany({
+    data: [
+      {
+        name: "カードラッシュ ポケモンカード買取候補",
+        shopName: "カードラッシュ",
+        baseUrl: "https://www.cardrush-pokemon.jp/",
+        searchUrlTemplate: "https://www.cardrush-pokemon.jp/#template-unset",
+        category: "pokemon",
+        description: "ポケモンカード系の公開買取ページ候補です。Auto Pilotが検索URLテンプレート推定とテスト取得に成功した場合だけ利用候補にします。",
+        defaultEnabled: false,
+        recommended: true,
+        tags: "pokemon,ポケカ,買取,買取価格,BOX",
+        memo: "候補URLです。自動有効化はHTTP 200、買取系HTML、searchUrlTemplate推定、テスト取得成功が揃った場合のみです。"
+      },
+      {
+        name: "フルアヘッド ポケモンカード買取候補",
+        shopName: "フルアヘッド",
+        baseUrl: "https://www.fullahead-pokemon.com/",
+        searchUrlTemplate: "https://www.fullahead-pokemon.com/#template-unset",
+        category: "pokemon",
+        description: "ポケモンカード系の公開買取ページ候補です。実際の買取検索URLはAuto Pilotで推定します。",
+        defaultEnabled: false,
+        recommended: true,
+        tags: "pokemon,ポケカ,買取,買取表,BOX",
+        memo: "候補URLです。販売ページだけと判定された場合は有効化しません。"
+      },
+      {
+        name: "遊々亭 ポケモンカード買取候補",
+        shopName: "遊々亭",
+        baseUrl: "https://yuyu-tei.jp/",
+        searchUrlTemplate: "https://yuyu-tei.jp/#template-unset",
+        category: "pokemon",
+        description: "ポケモンカード系の公開買取ページ候補です。searchUrlTemplateはAuto Pilotがフォームやリンクから推定します。",
+        defaultEnabled: false,
+        recommended: true,
+        tags: "pokemon,ポケカ,買取,買取価格,トレカ",
+        memo: "候補URLです。ログイン不要の公開ページだけを対象にします。"
+      },
+      {
+        name: "トレコロ ポケモンカード買取候補",
+        shopName: "トレコロ",
+        baseUrl: "https://www.torecolo.jp/",
+        searchUrlTemplate: "https://www.torecolo.jp/#template-unset",
+        category: "pokemon",
+        description: "ポケモンカード系の公開買取ページ候補です。買取検索ページとしてテスト成功した場合だけ利用候補にします。",
+        defaultEnabled: false,
+        recommended: true,
+        tags: "pokemon,ポケカ,買取,買取検索,BOX",
+        memo: "候補URLです。Auto Pilotが安全条件を満たさない場合は enabled=false のままにします。"
+      }
+    ]
+  });
+
   await prisma.priceSource.create({
     data: {
       name: "サンプル買取検索",
