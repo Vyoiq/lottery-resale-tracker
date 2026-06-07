@@ -192,10 +192,10 @@ async function getOperationNextActions(client: PrismaClient) {
     actions.push("active抽選が0件です。Auto Pilotで候補発見、AI分類、安全チェックまで自動復旧を試せます。");
   }
   if (enabledRealWatchSourceCount === 0) {
-    actions.push("有効な実URLのWatchSourceが0件です。Auto Pilotで安全な監視候補を自動探索できます。");
+    actions.push("ポケモンカード抽選候補を自動探索中です。安全条件を満たした監視候補だけ自動有効化します。");
   }
   if (enabledRealPriceSourceCount === 0) {
-    actions.push("有効なPriceSourceが0件です。Auto Pilotで価格ソース候補、テンプレート推定、テスト取得を自動整理できます。");
+    actions.push("ポケモンカード買取価格ソースを自動整理中です。テンプレート推定とテスト取得に成功した候補だけ自動有効化します。");
   }
   if (currentDiscoveryCandidateCount > 0) {
     actions.push(`未登録の現在受付中候補が ${currentDiscoveryCandidateCount} 件あります。Auto Pilotが安全条件を満たすものだけ登録・有効化します。`);

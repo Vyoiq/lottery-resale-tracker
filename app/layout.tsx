@@ -47,6 +47,16 @@ const navItems = [
   { href: "/runs", label: "収集ログ", icon: ScrollText }
 ];
 
+const primaryNavItems = [
+  { href: "/simple", label: "ポケカ候補", icon: ListChecks },
+  { href: "/", label: "概要", icon: Home },
+  { href: "/operation-runs", label: "運用ログ", icon: ScrollText },
+  { href: "/source-discovery", label: "候補診断", icon: Search },
+  { href: "/price-sources", label: "価格ソース診断", icon: CircleDollarSign },
+  { href: "/sources", label: "監視ソース診断", icon: RadioTower },
+  { href: "/settings/operations", label: "詳細設定", icon: Settings }
+];
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
@@ -63,7 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </div>
             <nav className="space-y-1">
-              {navItems.map((item) => {
+              {primaryNavItems.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link
@@ -82,7 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <header className="sticky top-0 z-10 border-b border-border bg-card/95 px-5 py-3 backdrop-blur lg:hidden">
               <div className="mb-3 text-sm font-semibold">Lottery Listings</div>
               <nav className="flex gap-2 overflow-x-auto pb-1">
-                {navItems.map((item) => (
+                {primaryNavItems.map((item) => (
                   <Link key={item.href} href={item.href} className="whitespace-nowrap rounded-md bg-muted px-3 py-2 text-xs font-medium">
                     {item.label}
                   </Link>

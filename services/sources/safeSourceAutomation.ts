@@ -34,6 +34,9 @@ const noiseWords = [
   "ヤフオク",
   "SNS"
 ];
+const pokemonKeywords = ["ポケモンカード", "ポケカ", "pokemon card", "BOX", "ボックス", "拡張パック", "強化拡張パック", "スペシャルBOX", "ポケモンセンター"];
+const lotteryActionKeywords = ["抽選", "応募", "受付", "予約", "招待", "招待販売", "抽選販売", "予約抽選"];
+const buybackKeywords = ["買取", "買取価格", "買取表", "高価買取", "未開封買取"];
 
 export async function runSafeSourceAutomation(
   client: PrismaClient = defaultPrisma,
@@ -288,6 +291,14 @@ function basicWatchSafety(
     return { ok: false, reason: "Amazonマーケットプレイス/中古/外部出品者の可能性" };
   }
   if (hasNoise(`${source.url} ${source.memo ?? ""} ${discovery.title} ${discovery.description ?? ""}`)) return { ok: false, reason: "ノイズキーワードあり" };
+  const combined = `${source.url} ${source.name} ${source.memo ?? ""} ${discovery.title} ${discovery.description ?? ""}`;
+  if (!containsAny(combined, pokemonKeywords)) return { ok: false, reason: "ポケモンカード/ポケカ/BOX系キーワードなし" };
+  if (!isAllowedAmazonDiscoveryType(discovery.discoveryType) && !containsAny(combined, lotteryActionKeywords)) {
+    return { ok: false, reason: "抽選/応募/受付/予約/招待系キーワードなし" };
+  }
+  const priceCombined = "";
+  if (!containsAny(combined, pokemonKeywords)) return { ok: false, reason: "ポケモンカード/ポケカ/BOX系キーワードなし" };
+  if (!containsAny(combined, buybackKeywords)) return { ok: false, reason: "買取/買取価格/買取表/高価買取/未開封買取キーワードなし" };
   return { ok: true, reason: "OK" };
 }
 
@@ -322,6 +333,12 @@ async function validateWatchUrl(url: string) {
     if (response.status !== 200) return { success: false, reason: `HTTP ${response.status}`, length: html.length, keywords: [] };
     if (isAmazonDpUrl(url)) {
       const lower = html.toLowerCase();
+      const pokemonMatches = pokemonKeywords.filter((keyword) => lower.includes(keyword.toLowerCase()));
+      if (pokemonMatches.length === 0) return { success: false, reason: "Amazon商品ページだがポケモンカード/BOX系キーワードなし", length: html.length, keywords: [] };
+      if (hasAmazonMarketplaceRisk(`${url} ${html.slice(0, 20000)}`)) {
+        return { success: false, reason: "Amazonマーケットプレイス/中古/外部出品者の可能性", length: html.length, keywords: pokemonMatches };
+      }
+      return { success: true, reason: `Amazon.co.jp販売候補 matched=${pokemonMatches.join(", ")}`, length: html.length, keywords: pokemonMatches };
       const keywords = ["ポケモンカード", "ポケカ", "拡張パック", "box", "pokemon card"].filter((keyword) => lower.includes(keyword.toLowerCase()));
       if (keywords.length === 0) return { success: false, reason: "Amazon商品ページだがポケカ/BOX系キーワードなし", length: html.length, keywords };
       if (hasAmazonMarketplaceRisk(`${url} ${html.slice(0, 20000)}`)) {
@@ -329,7 +346,7 @@ async function validateWatchUrl(url: string) {
       }
       return { success: true, reason: `Amazon.co.jp販売候補 matched=${keywords.join(", ")}`, length: html.length, keywords };
     }
-    const keywords = watchKeywords.filter((keyword) => html.includes(keyword));
+    const keywords = [...pokemonKeywords, ...lotteryActionKeywords].filter((keyword) => html.toLowerCase().includes(keyword.toLowerCase()));
     if (keywords.length === 0) return { success: false, reason: "抽選/応募/トレカ系キーワードなし", length: html.length, keywords };
     if (hasNoise(`${url} ${html.slice(0, 5000)}`)) return { success: false, reason: "ノイズキーワードあり", length: html.length, keywords };
     return { success: true, reason: `matched=${keywords.join(", ")}`, length: html.length, keywords };
@@ -348,6 +365,11 @@ function trustAllowed(trustLevel: string, minTrust: string) {
 function hasNoise(text: string) {
   const lower = text.toLowerCase();
   return noiseWords.some((word) => lower.includes(word.toLowerCase()));
+}
+
+function containsAny(text: string, keywords: string[]) {
+  const lower = text.toLowerCase();
+  return keywords.some((keyword) => lower.includes(keyword.toLowerCase()));
 }
 
 function appendMemo(memo: string | null, line: string) {

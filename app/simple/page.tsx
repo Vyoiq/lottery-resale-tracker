@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ignoreLotteryListing, inferAllPriceSourceTemplatesAction, runAutoPilotAction, runPriceCheckForListingAction, runSourceCuratorAction, setApplicationMilestone } from "@/lib/actions";
 import { applicationStatusLabels, dateOnly, multiple, percent, priceStatusLabels, yen } from "@/lib/format";
-import { getOperationSettings } from "@/lib/appSettings";
 import { prisma } from "@/lib/prisma";
 import { priorityLabelText, priorityTone } from "@/lib/priority";
 import { placeholderSourceReason } from "@/lib/sourceGuards";
@@ -27,9 +26,9 @@ function boolParam(searchParams: SearchParams, key: string, defaultValue: boolea
 async function getSimpleListings(searchParams: SearchParams) {
   const now = new Date();
   const showEnded = boolParam(searchParams, "showEnded", false);
-  const profitOnly = boolParam(searchParams, "profitOnly", true);
+  const profitOnly = boolParam(searchParams, "profitOnly", false);
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
-  const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
+  const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", false);
   const hideIgnored = boolParam(searchParams, "hideIgnored", true);
   const noiseKeywords = ["Snow Man", "Blu-ray", "DVD", "CD", "アナログレコード", "ファイナルファンタジー", "ゴールドポイント", "ゲームソフト", "映像作品", "音楽作品"];
 
@@ -96,6 +95,7 @@ async function getSimpleListings(searchParams: SearchParams) {
   });
 
   return listings
+    .filter((listing) => isPokemonCardListing(listing))
     .filter((listing) => !placeholderSourceReason({ name: listing.sourceName, url: listing.sourceUrl }))
     .filter((listing) => !isAmazonExcludedDiscoveryType(listing.discoveryType))
     .sort((a, b) => {
@@ -140,6 +140,7 @@ async function getSimpleDiagnostics() {
     enabledWatchSources,
     enabledPriceSources,
     activeListingCount,
+    priceFoundListingCount,
     currentDiscoveryCandidateCount,
     priceDiscoveryCandidateCount,
     basePriceSourceNeedsTemplateCount,
@@ -154,6 +155,14 @@ async function getSimpleDiagnostics() {
         status: "active",
         ignored: false,
         applicationEndAt: { gte: now }
+      }
+    }),
+    prisma.lotteryListing.count({
+      where: {
+        status: "active",
+        ignored: false,
+        priceStatus: "found",
+        bestBuyPrice: { not: null }
       }
     }),
     prisma.discoveredSource.count({
@@ -204,6 +213,7 @@ async function getSimpleDiagnostics() {
 
   return {
     activeListingCount,
+    priceFoundListingCount,
     enabledWatchSourceCount: enabledWatchSources.length,
     enabledRealWatchSourceCount: enabledWatchSources.filter((source) => !placeholderSourceReason(source)).length,
     enabledPriceSourceCount: enabledPriceSources.length,
@@ -221,19 +231,19 @@ async function getSimpleDiagnostics() {
 
 export default async function SimplePage({ searchParams }: { searchParams: SearchParams }) {
   const showEnded = boolParam(searchParams, "showEnded", false);
-  const profitOnly = boolParam(searchParams, "profitOnly", true);
+  const profitOnly = boolParam(searchParams, "profitOnly", false);
   const priorityOnly = boolParam(searchParams, "priorityOnly", false);
-  const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", true);
+  const priceFoundOnly = boolParam(searchParams, "priceFoundOnly", false);
   const hideIgnored = boolParam(searchParams, "hideIgnored", true);
-  let [listings, diagnostics, operationSettings] = await Promise.all([
+  let [listings, diagnostics] = await Promise.all([
     getSimpleListings(searchParams),
-    getSimpleDiagnostics(),
-    getOperationSettings()
+    getSimpleDiagnostics()
   ]);
   const shouldRunAutoPilot =
-    (listings.length === 0 && operationSettings.autoPilotRunOnEmptySimple) ||
-    (diagnostics.enabledRealWatchSourceCount === 0 && operationSettings.autoPilotRunWhenNoWatchSource) ||
-    (diagnostics.enabledRealPriceSourceCount === 0 && operationSettings.autoPilotRunWhenNoPriceSource);
+    listings.length === 0 ||
+      diagnostics.enabledRealWatchSourceCount === 0 ||
+      diagnostics.enabledRealPriceSourceCount === 0 ||
+      diagnostics.priceFoundListingCount === 0;
 
   if (shouldRunAutoPilot) {
     const autopilot = await runAutoPilot(prisma, { force: false, trigger: "simple_auto_recovery" });
@@ -264,7 +274,19 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </Card>
       ) : null}
 
-      {diagnostics.enabledRealWatchSourceCount === 0 ? (
+      {diagnostics.enabledRealWatchSourceCount === 0 || diagnostics.enabledRealPriceSourceCount === 0 ? (
+        <Card className="mb-5 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
+          <div className="font-semibold">ポケモンカード候補を自動探索しています</div>
+          <div className="mt-1">
+            抽選販売・招待販売・買取価格を確認し、表示できる候補が見つかり次第ここに表示します。安全チェック済みの候補だけ表示し、自動応募・自動購入は行いません。
+          </div>
+          <div className="mt-2 text-xs">
+            詳細を見る: <Link href="/operation-runs" className="underline">運用ログ</Link> / <Link href="/health" className="underline">ソース診断</Link>
+          </div>
+        </Card>
+      ) : null}
+
+      {false && diagnostics.enabledRealWatchSourceCount === 0 ? (
         <Card className="mb-5 border-amber-200 bg-amber-50/70 p-4 text-sm leading-6 text-amber-900">
           <div className="font-semibold">有効な監視ソースがありません。Auto Pilotで安全な候補を自動探索できます</div>
           <div className="mt-1">
@@ -273,7 +295,7 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </Card>
       ) : null}
 
-      {diagnostics.enabledRealPriceSourceCount === 0 ? (
+      {false && diagnostics.enabledRealPriceSourceCount === 0 ? (
         <Card className="mb-5 border-rose-200 bg-rose-50/70 p-4 text-sm leading-6 text-rose-900">
           <div className="font-semibold">有効な価格ソースがありません。Auto Pilotで価格ソース候補を自動整理できます</div>
           <div className="mt-1">
@@ -319,7 +341,7 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </form>
       </Card>
 
-      {listings.length === 0 ? <SimpleEmptyAutoPilotGuidance diagnostics={diagnostics} /> : null}
+      {listings.length === 0 ? <SimplePokemonEmptyGuidance diagnostics={diagnostics} /> : null}
 
       {false && listings.length === 0 ? (
         <EmptyState
@@ -335,6 +357,25 @@ export default async function SimplePage({ searchParams }: { searchParams: Searc
         </div>
       )}
     </>
+  );
+}
+
+function SimplePokemonEmptyGuidance({ diagnostics }: { diagnostics: Awaited<ReturnType<typeof getSimpleDiagnostics>> }) {
+  return (
+    <Card className="border-amber-200 bg-amber-50/70 p-5">
+      <h2 className="text-lg font-semibold text-amber-950">ポケモンカード候補を自動探索しています</h2>
+      <p className="mt-2 text-sm leading-6 text-amber-900">
+        抽選販売・招待販売・買取価格を確認し、表示できる候補が見つかり次第ここに表示します。
+        安全チェック済みの候補だけ表示し、自動応募・自動購入は行いません。
+      </p>
+      <div className="mt-4 rounded-md border border-amber-200 bg-white/60 px-3 py-2 text-xs leading-5 text-amber-900">
+        自動探索状況: 受付中候補 {diagnostics.currentDiscoveryCandidateCount}件 / 価格候補 {diagnostics.priceDiscoveryCandidateCount}件 /
+        価格取得済み候補 {diagnostics.priceFoundListingCount}件 / 要確認候補 {diagnostics.autoEnableWatchCandidateCount + diagnostics.autoEnablePriceCandidateCount}件
+      </div>
+      <div className="mt-3 text-xs text-amber-800">
+        詳細を見る: <Link href="/operation-runs" className="underline">運用ログ</Link> / <Link href="/source-discovery" className="underline">候補診断</Link>
+      </div>
+    </Card>
   );
 }
 

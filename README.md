@@ -786,6 +786,48 @@ Auto Pilotが行わないこと:
 
 `enabled=true` になるのは、実在URL、HTTP 200、プレースホルダーではない、ノイズではない、AI信頼度が高い、テスト取得に成功しているなどの安全条件を満たす場合だけです。`example.com`、プレースホルダー、ノイズURLは有効化しません。
 
+## ポケモンカード特化運用
+
+このアプリは、ポケモンカードの抽選販売、予約抽選、招待販売、Amazon.co.jp販売、買取価格比較に特化します。基本的な使い方は `/simple` を見るだけです。
+
+対象:
+
+- ポケモンカード、ポケカ、BOX、拡張パック、強化拡張パック、スペシャルBOX
+- ポケモンセンター限定
+- 抽選販売、予約抽選、招待販売
+- Amazon.co.jp販売の招待販売、予約販売、定価付近の商品
+- 買取価格、買取表、高価買取、未開封買取
+
+対象外:
+
+- Amazonマーケットプレイス、中古品、外部販売者商品
+- フリマ、メルカリ、ヤフオク
+- Snow Man、DVD、Blu-ray、CD、ゲームソフト、家電、食品、通信契約、WiMAX、ブロードバンド、中古スマホ
+- 一般ニュース、汎用ストアページ、ゴールドポイント中心の通常販売ページ
+
+Auto Pilotは標準運用です。`/simple` に表示候補がない、有効なWatchSource/PriceSourceがない、価格取得済み候補がない、最終実行から時間が経っている場合は、アプリ側で安全な範囲の自動復旧を試します。ユーザーがソースを有効化したり、テンプレートを設定したりする操作は原則不要です。
+
+自動化する範囲:
+
+- ポケモンカード向け固定クエリでのSource Discovery / PriceSource Discovery
+- AI分類
+- AI Source Curator
+- WatchSource / PriceSourceの自動登録
+- searchUrlTemplate推定
+- テスト取得
+- 安全条件を満たしたソースだけ `enabled=true`
+- 抽選情報収集、価格取得、通知生成
+
+自動化しない範囲:
+
+- 自動応募
+- 自動購入
+- ログイン
+- CAPTCHA回避
+- 高頻度アクセス
+
+詳細画面の `/sources`、`/price-sources`、`/source-discovery`、`/settings/operations`、`/operation-runs` は診断と運用ログ用です。通常は `/simple` を見れば判断できる状態を目指します。
+
 確認場所:
 - `/source-discovery` で AI の抽選応募ページ判定、受付中判定、理由、除外理由を確認
 - `/settings/operations` の `AI分類` ボタンで手動実行

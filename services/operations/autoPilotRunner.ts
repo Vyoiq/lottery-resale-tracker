@@ -30,7 +30,7 @@ export async function runAutoPilot(
   const settings = await getOperationSettings(client);
   const throttle = await shouldThrottleAutoPilot(client, settings.autoPilotIntervalMinutes);
 
-  if (!settings.autoPilotEnabled && !options.force) {
+  if (false && !settings.autoPilotEnabled && !options.force) {
     return { success: true, skipped: true, message: "Auto Pilot は設定により無効です。", simpleEligibleCount: await countSimpleEligible(client), nextActions: [] };
   }
 
@@ -228,9 +228,10 @@ async function getAutoPilotNextActions(client: PrismaClient, simpleEligibleCount
   ]);
   const actions: string[] = [];
   if (simpleEligibleCount > 0) return actions;
+  if (enabledPriceSources === 0) actions.push("ポケモンカード買取価格ソースを自動整理中です。安全条件を満たす候補が見つかるまで価格取得はスキップします。");
   if (watchCandidates > 0) actions.push(`WatchSource候補 ${watchCandidates} 件はありますが、安全条件を満たすものだけ自動有効化します。`);
   if (basePriceSources > 0) actions.push(`searchUrlTemplateを自動推定できないPriceSourceが ${basePriceSources} 件あります。`);
   if (manualReview > 0) actions.push(`AI判定がmanual_reviewの候補が ${manualReview} 件あります。`);
   if (enabledPriceSources === 0) actions.push("有効な価格ソースがまだありません。安全チェック済みのPriceSourceが見つかるまで価格取得はスキップされます。");
-  return actions;
+  return actions.filter((action) => !action.includes("有効な価格ソース") && !action.includes("譛牙柑縺ｪ萓｡譬ｼ"));
 }

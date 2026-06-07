@@ -20,6 +20,30 @@ const providers: SearchProvider[] = [
   manualFallbackProvider
 ];
 
+const pokemonWatchDiscoveryQueries = [
+  { name: "ポケモンカード 抽選販売 受付中", query: "ポケモンカード 抽選販売 受付中", category: "pokemon" },
+  { name: "ポケカ 抽選販売 受付中", query: "ポケカ 抽選販売 受付中", category: "pokemon" },
+  { name: "ポケモンカード 応募受付中", query: "ポケモンカード 応募受付中", category: "pokemon" },
+  { name: "ポケカ 予約 抽選", query: "ポケカ 予約 抽選", category: "pokemon" },
+  { name: "ポケモンカード 招待販売", query: "ポケモンカード 招待販売", category: "pokemon" },
+  { name: "ポケモンカード Amazon 招待", query: "ポケモンカード Amazon 招待", category: "pokemon" },
+  { name: "ポケモンカード Amazon 予約", query: "ポケモンカード Amazon 予約", category: "pokemon" },
+  { name: "ポケモンセンター スペシャルBOX 抽選", query: "ポケモンセンター スペシャルBOX 抽選", category: "pokemon" },
+  { name: "ポケモンカード BOX 抽選", query: "ポケモンカード BOX 抽選", category: "pokemon" },
+  { name: "ポケカ BOX 予約", query: "ポケカ BOX 予約", category: "pokemon" }
+] as const;
+
+const pokemonPriceDiscoveryQueries = [
+  { name: "ポケモンカード 買取価格", query: "ポケモンカード 買取価格", category: "pokemon" },
+  { name: "ポケカ 買取価格", query: "ポケカ 買取価格", category: "pokemon" },
+  { name: "ポケモンカード 買取表", query: "ポケモンカード 買取表", category: "pokemon" },
+  { name: "ポケカ 買取表", query: "ポケカ 買取表", category: "pokemon" },
+  { name: "ポケモンカード BOX 買取", query: "ポケモンカード BOX 買取", category: "pokemon" },
+  { name: "ポケカ BOX 買取", query: "ポケカ BOX 買取", category: "pokemon" },
+  { name: "スペシャルBOX 買取価格", query: "スペシャルBOX 買取価格", category: "pokemon" },
+  { name: "ポケモンセンター BOX 買取", query: "ポケモンセンター BOX 買取", category: "pokemon" }
+] as const;
+
 const defaultPriceDiscoveryQueries = [
   { name: "ポケモンカード 買取価格", query: "ポケモンカード 買取価格", category: "pokemon" },
   { name: "ポケカ 買取価格", query: "ポケカ 買取価格", category: "pokemon" },
@@ -95,8 +119,8 @@ async function runDiscovery(input: {
   }
   const forcedQueries =
     input.mode === "price"
-      ? currentPriceDiscoveryQueries.map((query) => query.query)
-      : fallbackWatchDiscoveryQueries.map((query) => query.query);
+      ? pokemonPriceDiscoveryQueries.map((query) => query.query)
+      : pokemonWatchDiscoveryQueries.map((query) => query.query);
   const queries = await input.client.discoveryQuery.findMany({
     where: {
       OR: [{ enabled: true }, ...(forcedQueries.length > 0 ? [{ query: { in: forcedQueries } }] : [])],
@@ -211,11 +235,11 @@ async function runDiscovery(input: {
 }
 
 async function ensureCurrentWatchDiscoveryQueries(client: PrismaClient) {
-  await ensureDiscoveryQueries(client, fallbackWatchDiscoveryQueries, "watch_source");
+  await ensureDiscoveryQueries(client, pokemonWatchDiscoveryQueries, "watch_source");
 }
 
 async function ensureCurrentPriceDiscoveryQueries(client: PrismaClient) {
-  await ensureDiscoveryQueries(client, currentPriceDiscoveryQueries, "price_source");
+  await ensureDiscoveryQueries(client, pokemonPriceDiscoveryQueries, "price_source");
 }
 
 async function ensureDiscoveryQueries(

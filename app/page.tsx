@@ -163,7 +163,7 @@ export default async function DashboardPage() {
         title="ダッシュボード"
         description="抽選情報、買取価格、応募状況、確定利益、通知をまとめて確認します。応募や購入処理の自動化は行いません。"
       >
-        <div className="flex flex-wrap gap-2">
+        <div className="hidden">
           <form action={runCollectorsAction}>
             <button className={buttonClass} type="submit">抽選情報を更新</button>
           </form>
@@ -198,7 +198,7 @@ export default async function DashboardPage() {
         </div>
       </Card>
 
-      {setupWarnings.length > 0 ? (
+      {false && setupWarnings.length > 0 ? (
         <Card className="mb-6 border-amber-200 bg-amber-50/70 p-4">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
